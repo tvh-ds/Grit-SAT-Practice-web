@@ -382,10 +382,13 @@ function EditQuestionModal({
   const question = link.question;
   const [prompt, setPrompt] = useState(question.prompt);
   const [passage, setPassage] = useState(question.passage?.content ?? "");
-  const [answer, setAnswer] = useState(question.correct_answer ?? "");
+  const [answer, setAnswer] = useState(() => {
+    const value = question.correct_answer ?? question.choices.find((choice) => choice.is_correct)?.label ?? "";
+    return question.question_type === "multiple_choice" ? value.trim().toUpperCase() : value;
+  });
   const [explanation, setExplanation] = useState(question.explanation ?? "");
   const [choices, setChoices] = useState(
-    [...question.choices].sort((a, b) => a.position - b.position).map(({ label, text }) => ({ label, text })),
+    [...question.choices].sort((a, b) => a.position - b.position).map(({ label, text }) => ({ label: label.trim().toUpperCase(), text })),
   );
   const [imageFile, setImageFile] = useState<File | null>(null);
   const [removeImage, setRemoveImage] = useState(false);
@@ -454,7 +457,7 @@ function EditQuestionModal({
         body: {
           prompt: prompt.trim(),
           passage_text: passage.trim() || null,
-          correct_answer: answer.trim() || null,
+          correct_answer: (question.question_type === "multiple_choice" ? answer.trim().toUpperCase() : answer.trim()) || null,
           explanation: explanation.trim() || null,
           stimulus_image_path: imagePath,
           choices: question.question_type === "multiple_choice" ? choices : [],
@@ -463,7 +466,9 @@ function EditQuestionModal({
       onSaved();
     } catch (err) {
       if (uploadedPath) await supabase.storage.from("question-assets").remove([uploadedPath]).catch(() => undefined);
-      setError(err instanceof Error ? err.message : "Unable to save question.");
+      setError(err instanceof TypeError
+        ? "Unable to reach the server. Your edits are still here. Check your connection and try saving again."
+        : err instanceof Error ? err.message : "Unable to save question.");
       setBusy(false);
     }
   }
@@ -483,7 +488,7 @@ function EditQuestionModal({
           <div>
             <label className="field-label">Answer choices</label>
             {choices.map((choice, index) => (
-              <div className="choice-edit" key={`${index}-${choice.label}`}>
+              <div className="choice-edit" key={index}>
                 <input
                   className="input"
                   aria-label={`Choice ${index + 1} label`}

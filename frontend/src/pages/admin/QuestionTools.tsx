@@ -24,7 +24,7 @@ export interface QListRow {
   domain: string | null;
   skill: string | null;
   difficulty: number | null;
-  choices: { id: string; label: string; text: string; is_correct: boolean }[];
+  choices: { id: string; label: string; text: string; is_correct: boolean; position?: number }[];
   correct_answer: string | null;
   explanation?: string | null;
   passage?: { id: string; title: string | null; content: string | null } | null;
@@ -118,10 +118,10 @@ export function QuestionModal({ question, onClose, onSaved }: { question: QListR
   const [domain, setDomain] = useState(question?.domain ?? "");
   const [skill, setSkill] = useState(question?.skill ?? "");
   const [diffLabel, setDiffLabel] = useState<DifficultyLabel>(difficultyLabel(question?.difficulty ?? null));
-  const [correctAnswer, setCorrectAnswer] = useState(question?.correct_answer ?? "");
+  const [correctAnswer, setCorrectAnswer] = useState(question?.correct_answer ?? question?.choices.find((choice) => choice.is_correct)?.label ?? "");
   const [explanation, setExplanation] = useState(question?.explanation ?? "");
   const [choices, setChoices] = useState(
-    question?.choices?.map((c) => ({ label: c.label, text: c.text, is_correct: c.is_correct })) ??
+    question?.choices ? [...question.choices].sort((a, b) => (a.position ?? 0) - (b.position ?? 0)).map((c) => ({ label: c.label, text: c.text, is_correct: c.is_correct })) :
       ["A", "B", "C", "D"].map((l) => ({ label: l, text: "", is_correct: false })),
   );
   const [busy, setBusy] = useState(false);
@@ -132,6 +132,7 @@ export function QuestionModal({ question, onClose, onSaved }: { question: QListR
 
   async function submit(e?: FormEvent) {
     if (e) e.preventDefault();
+    if (busy) return;
     setBusy(true);
     setError(null);
     try {
@@ -143,9 +144,9 @@ export function QuestionModal({ question, onClose, onSaved }: { question: QListR
         domain: domain || null,
         skill: skill || null,
         difficulty: difficultyValue(diffLabel),
-        correct_answer: correctAnswer || null,
+        correct_answer: (qtype === "multiple_choice" ? correctAnswer.trim().toUpperCase() : correctAnswer.trim()) || null,
         explanation: explanation || null,
-        choices: qtype === "multiple_choice" ? choices.map((c, i) => ({ label: c.label, text: c.text, is_correct: c.label.toUpperCase() === (correctAnswer || "").toUpperCase(), position: i + 1 })) : [],
+        choices: qtype === "multiple_choice" ? choices.map((c, i) => ({ label: c.label.trim().toUpperCase(), text: c.text, is_correct: c.label.trim().toUpperCase() === correctAnswer.trim().toUpperCase(), position: i + 1 })) : [],
       };
       if (question) {
         await fnJson(`admin-questions/${question.id}`, { method: "PATCH", token, body });

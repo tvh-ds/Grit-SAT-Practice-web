@@ -151,29 +151,69 @@ Deno.serve(async (req) => {
 
     if (req.method === "PATCH" && seg.length === 2) {
       const body = questionUpdateSchema.parse(await req.json());
-      const { prompt, choices, ...rest } = body;
-      const { data, error: err } = await svc
+      const { data: existing, error: existingErr } = await fetchQuestion(svc, id);
+      if (existingErr) return error(existingErr.message, 500);
+      if (!existing) return error("Question not found", 404);
+
+      const questionType = body.question_type ?? existing.question_type;
+      const answer = body.correct_answer === undefined ? existing.correct_answer : body.correct_answer;
+      const correctAnswer = questionType === "multiple_choice" ? answer?.trim().toUpperCase() || null : answer;
+      const effectiveChoices = body.choices ?? existing.choices;
+      // Validate the complete resulting question before making any writes. An
+      // empty choices array is the normal payload for student-produced answers.
+      if (questionType === "multiple_choice") {
+        if (effectiveChoices.length < 2) return error("Multiple choice questions need at least 2 choices", 422);
+        const labels = effectiveChoices.map((c: { label: string }) => c.label.trim().toUpperCase());
+        if (new Set(labels).size !== labels.length) return error("Choice labels must be unique", 422);
+        if (correctAnswer && !labels.includes(correctAnswer)) return error("Correct answer must match one of the choice labels", 422);
+      } else if (body.choices && body.choices.length > 0) {
+        return error("Student-produced questions cannot have choices", 422);
+      }
+
+      const { choices, ...rest } = body;
+      const { error: err } = await svc
         .from("questions")
-        .update({ ...rest, updated_at: undefined })
+        .update({ ...rest, correct_answer: correctAnswer })
         .eq("id", id)
         .select("id")
         .single();
       if (err) return error(err.message, 500);
-      if (choices) {
-        if (choices.length >= 2) {
-          const { error: dErr } = await svc.from("question_choices").delete().eq("question_id", id);
-          if (dErr) return error(dErr.message, 500);
-          const { error: iErr } = await svc.from("question_choices").insert(
-            choices.map((c) => ({ question_id: id, ...c })),
+      if (choices !== undefined || questionType === "student_produced") {
+        if (questionType === "multiple_choice" && choices) {
+          // A normal answer/text edit must retain choice IDs referenced by
+          // student responses. Only replace rows when their structure changes.
+          const sameStructure = choices.length === existing.choices.length && choices.every((c) =>
+            existing.choices.some((old: { label: string; position: number }) => old.label === c.label.trim().toUpperCase() && old.position === c.position)
           );
+          const rows = choices.map((c) => ({
+            ...c,
+            ...(sameStructure ? { id: existing.choices.find((old: { label: string }) => old.label === c.label.trim().toUpperCase()).id } : {}),
+            question_id: id,
+            label: c.label.trim().toUpperCase(),
+            is_correct: c.label.trim().toUpperCase() === correctAnswer,
+          }));
+          if (!sameStructure) {
+            const { error: dErr } = await svc.from("question_choices").delete().eq("question_id", id);
+            if (dErr) return error(dErr.message, 500);
+          }
+          const { error: iErr } = sameStructure
+            ? await svc.from("question_choices").upsert(rows)
+            : await svc.from("question_choices").insert(rows);
           if (iErr) return error(iErr.message, 500);
         } else {
-          return error("Multiple choice questions need at least 2 choices", 422);
+          const { error: dErr } = await svc.from("question_choices").delete().eq("question_id", id);
+          if (dErr) return error(dErr.message, 500);
         }
-      }
-      if (prompt !== undefined) {
-        const { error: pErr } = await svc.from("questions").update({ prompt }).eq("id", id);
-        if (pErr) return error(pErr.message, 500);
+      } else if (body.correct_answer !== undefined) {
+        // Answer-only PATCH requests must also update the flags used by previews
+        // and grading, while retaining the existing choice IDs.
+        const { error: clearErr } = await svc.from("question_choices").update({ is_correct: false }).eq("question_id", id);
+        if (clearErr) return error(clearErr.message, 500);
+        if (correctAnswer) {
+          const correctChoice = existing.choices.find((c: { label: string }) => c.label.trim().toUpperCase() === correctAnswer);
+          const { error: keyErr } = await svc.from("question_choices").update({ is_correct: true }).eq("question_id", id).eq("id", correctChoice.id);
+          if (keyErr) return error(keyErr.message, 500);
+        }
       }
       await svc.from("audit_logs").insert({
         actor_id: ctx.user.id,
