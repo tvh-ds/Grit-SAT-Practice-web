@@ -50,7 +50,7 @@ until submission. Save/Assign validates whole-number minutes from 1 through 600.
 
 ## Component conventions
 
-This feature extends the incumbent Grit system in `DESIGN.md`: navy surfaces,
+This feature extends the incumbent Grit system in the [design system](design/design-system.md): navy surfaces,
 champagne primary actions, Manrope headings, and Inter controls and dense data.
 The conventions below are scoped to class management and assignment dialogs.
 

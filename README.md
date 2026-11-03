@@ -91,4 +91,4 @@ Open [localhost:5173](http://localhost:5173). See the backend guide for local ac
 ## Engineering references
 
 - [AI feature designs](docs/plans/ai-integration.md) and [content intelligence plan](docs/plans/content-intelligence-copilot.md)
-- [Frontend guide](frontend/README.md), [product notes](PRODUCT.md), and [design system](DESIGN.md)
+- [Frontend guide](frontend/README.md), [product notes](docs/product.md), and [design system](docs/design/design-system.md)
