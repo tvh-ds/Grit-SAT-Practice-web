@@ -6,7 +6,7 @@ Students take timed tests, review their answers, and study vocabulary. Educators
 
 ## Outcomes
 
-- **Learning platform.** Grit served **40 students monthly**, with timed assessments, automated scoring, performance analytics, and FSRS vocabulary review.
+- **Learning platform.** Grit serves **40 students monthly**, with timed assessments, automated scoring, performance analytics, and FSRS vocabulary review.
 - **Document intelligence.** The ingestion pipeline combines Cohere OCR, deterministic validation, and source-grounded LLM repair. Confidence and evidence checks route drafts to human review. The project tracks ingestion cost and latency.
 - **Question classification.** The project benchmarked **six classifiers** using TF-IDF and ModernBERT on **1,710 SAT questions** for skill and difficulty prediction. The selected **TF-IDF + Linear SVM** reached **0.936 validation macro-F1** and **31 ms p95 API latency**.
 - **Personalized learning.** The project scope includes Bayesian IRT mastery tracking, adaptive testing, and an offline-tested RAG tutor designed to cite its sources and prevent answer leakage during active practice.
