@@ -131,7 +131,7 @@ button { font-family: inherit; }
 }
 
 /* ============================================================
-   typography helpers — headline color contrast (DESIGN.md)
+   typography helpers — headline color contrast (docs/design/design-system.md)
    ============================================================ */
 .display-headline {
   font-size: clamp(52px,7vw,96px);

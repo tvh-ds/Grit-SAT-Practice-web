@@ -40,7 +40,7 @@ be cleared while editing; validation happens when saving or assigning.
 
 ## Design and release constraints
 
-Extend the existing Grit visual identity described in DESIGN.md. Keep the dense
+Extend the existing Grit visual identity described in the [design system](design/design-system.md). Keep the dense
 operational tables, readable controls, navy surfaces, and champagne actions.
 Wide tables scroll inside their own surface on narrow screens.
 
