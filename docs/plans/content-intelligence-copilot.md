@@ -24,7 +24,7 @@ Every draft receives one current review state:
 
 The admin editor presents these states as queues, shows import warnings above the questions, summarizes deterministic risks and AI changes, and opens the supporting source image. Human edits invalidate stale review results. Dismissing a finding requires a reason and becomes evaluation feedback. Full Reprocess reruns OCR, parsing, deterministic gates, and downstream review from the stored PDF. The Approve Import action is enabled only when every question is Complete and approval prerequisites such as answer coverage and confirmed visual crops are met.
 
-Production evidence will include extraction correctness, serious-defect recall, the serious-defect rate among Complete drafts, human review time, latency, failure rate, and cost per approved question. The detailed implementation is in [the ingestion implementation plan](plans/ai-content-ingestion-implementation.md), and the reporting contract is in [the ingestion evaluation report](evals/ai-content-ingestion-evaluation.md).
+Production evidence will include extraction correctness, serious-defect recall, the serious-defect rate among Complete drafts, human review time, latency, failure rate, and cost per approved question. The detailed implementation is in [the ingestion implementation plan](ai-content-ingestion-implementation.md), and the reporting contract is in [the ingestion evaluation report](../evals/ai-content-ingestion-evaluation.md).
 
 ## 2. Domain, skill, and difficulty predictions
 
