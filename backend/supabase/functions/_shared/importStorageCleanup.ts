@@ -128,6 +128,8 @@ export async function cleanupImportedTestStorage(client: Client, importId: strin
       const result = await client.storage.from("pdf-imports").remove([imp.storage_path]);
       check(result, "delete imported PDF");
       deletedPdfs = result.data?.length ?? 0;
+      const detached = await client.from("pdf_imports").update({ storage_path: null }).eq("id", importId).eq("storage_path", imp.storage_path);
+      check(detached, "detach deleted original PDF");
     }
   }
   const result: ImportStorageCleanup = { status: "complete", deleted_images: deletedImages, retained_images: candidates.length - unused.length, deleted_pdfs: deletedPdfs };

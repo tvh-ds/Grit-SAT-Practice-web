@@ -1,3 +1,4 @@
+import VisualCode from "../../components/VisualCode";
 import { useState, type FormEvent } from "react";
 import { fnJson, getToken } from "../../lib/supabase";
 import { Button, Modal } from "../../components/ui";
@@ -30,6 +31,8 @@ export interface QListRow {
   passage?: { id: string; title: string | null; content: string | null } | null;
   stimulus_image_path?: string | null;
   stimulus_image_url?: string | null;
+  visual_code?: string | null;
+  visual_format?: "svg" | "html" | null;
   source_question_id?: string | null;
 }
 
@@ -58,7 +61,8 @@ export function QuestionPreview({ q, onClose, onEdit }: { q: QListRow; onClose: 
           {q.source_question_id ? <span className="chip chip-muted">Source {q.source_question_id}</span> : null}
         </div>
 
-        {q.stimulus_image_url && (
+        <VisualCode code={q.visual_code} format={q.visual_format} />
+        {!q.visual_code && q.stimulus_image_url && (
           <img src={q.stimulus_image_url} alt="Stimulus" style={{ maxWidth: "100%", maxHeight: 320, objectFit: "contain", border: "1px solid var(--border, #333)", borderRadius: 8, alignSelf: "center" }} />
         )}
 

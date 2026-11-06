@@ -188,6 +188,8 @@ Saved OCR files under `Tests Unparsed/post_ocr/` can be imported without new Par
 
 Useful worker scripts:
 
+- `npm run drive:watch -- --target production`: recursively watch the configured Google Drive folder and ingest new PDFs into production draft imports, checking existing test/import names first, with October 2026 then September 2026 as the initial priority. Matching production credentials are required. See [Drive setup and recovery](../docs/drive-ingestion.md).
+
 - `npm run verify:corpus`: scans `Tests Unparsed/` with text extraction and parsers, writing `worker/tmp/full-test-parser-report.json`.
 - `npx tsx scripts/import-ocr-folder.ts ...`: imports saved `post_ocr` output into Supabase drafts without calling Parse.
 - `npx tsx scripts/ingest-folder.ts ...`: local batch ingestion helper.

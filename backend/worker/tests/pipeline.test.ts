@@ -241,8 +241,10 @@ describe("Pipeline (Parse 5)", () => {
     expect(visual).toHaveLength(1);
     expect(plain).toHaveLength(1);
     expect(visual[0].status).toBe("needs_review");
-    expect(visual[0].stimulus_image_path).toBeTruthy();
-    expect(visual[0].stimulus_image_path).toContain(`/math-1-q2-${visual[0].id}-page-1.png`);
+    expect(visual[0].stimulus_image_path).toBeNull();
+    expect(visual[0].stimulus_source_image_path).toBeNull();
+    expect(visual[0].source_page_number).toBe(1);
+    expect(uploads).toEqual([]);
     expect(visual[0].prompt).not.toContain("[figure");
     expect(visual[0].prompt).toContain("Which statement is best");
     expect(plain[0].stimulus_image_path).toBeFalsy();
@@ -526,7 +528,7 @@ describe("Pipeline (Parse 5)", () => {
       const result = await (pipeline as any).uploadStimulus("imp", key, 1, new Uint8Array(), [{ x1: .1, y1: .2, x2: .6, y2: .5 }], cache);
       paths.push(result.activePath);
       expect(result.source).toBe("auto");
-      expect(result.sourcePath).toBe("page-1.png");
+      expect(result.sourcePath).toBeNull();
     }
     expect(new Set(paths).size).toBe(5);
     expect(paths[0]).toContain("/rw-1-q10-draft-0-auto-crop.png");

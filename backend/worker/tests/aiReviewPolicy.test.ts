@@ -7,6 +7,7 @@ describe("three-state ingestion policy", () => {
   it("marks risk-free questions complete", () => { const risks = draftRisks(clean); expect(risks).toEqual([]); expect(stateForRisks(risks)).toBe("complete"); });
   it("routes missing answers directly to humans", () => { const risks = draftRisks({ ...clean, suggested_answer: null }); expect(hasMajorRisk(risks)).toBe(true); expect(hasMinorRisk(risks)).toBe(false); });
   it("routes repairable parser and crop issues to AI", () => { const risks = draftRisks({ ...clean, has_visual_stimulus: true, stimulus_source_image_path: "source.png", stimulus_crop_status: "pending", parser_metadata: { parse_flags: ["recovered_from_page_replay"] } }); expect(hasMinorRisk(risks)).toBe(true); expect(hasMajorRisk(risks)).toBe(false); });
+  it("does not require a crop or source image for converted visuals", () => { expect(draftRisks({ ...clean, has_visual_stimulus: true, visual_code: "<svg/>", stimulus_source_image_path: null, stimulus_crop_status: null })).toEqual([]); });
   it("sends unknown parser flags to humans", () => { expect(hasMajorRisk(draftRisks({ ...clean, parser_metadata: { parse_flags: ["future_flag"] } }))).toBe(true); });
   it("maps every known parser flag explicitly", () => {
     const major = ["duplicate_source_number_conflict", "source_question_id_unresolved", "screenshot_section_unresolved", "source_global_id_ocr_unresolved", "number_inference_after_duplicate"];

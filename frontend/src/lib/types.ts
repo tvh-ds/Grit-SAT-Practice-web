@@ -26,6 +26,8 @@ export interface Question {
   source_question_id?: string | null;
   stimulus_image_path?: string | null;
   stimulus_image_url?: string | null;
+  visual_code?: string | null;
+  visual_format?: "svg" | "html" | null;
   choices: Choice[];
   passage?: Passage | null;
 }
@@ -197,6 +199,8 @@ export interface ReviewItem {
   explanation: string | null;
   correct_answer: string | null;
   stimulus_image_url?: string | null;
+  visual_code?: string | null;
+  visual_format?: "svg" | "html" | null;
   passage?: ReviewPassage | null;
   choices: ReviewChoice[];
   selected_choice_id: string | null;
@@ -291,6 +295,8 @@ export interface BatchQuestionStat {
   question_type: string;
   correct_answer: string | null;
   stimulus_image_url?: string | null;
+  visual_code?: string | null;
+  visual_format?: "svg" | "html" | null;
   passage?: ReviewPassage | null;
   choices: BatchChoiceStat[];
   correct_count: number;
@@ -368,7 +374,9 @@ export interface PdfImportReadiness {
 export interface PdfImport {
   id: string;
   original_filename: string;
-  storage_path: string;
+  storage_path: string | null;
+  source_document_id?: string | null;
+  source_state?: "legacy" | "verified" | "needs_original" | "released";
   status: string;
   page_count: number | null;
   extraction_method: string | null;
@@ -490,7 +498,12 @@ export interface DraftQuestion {
   has_visual_stimulus?: boolean;
   stimulus_image_path?: string | null;
   stimulus_image_url?: string | null;
+  visual_code?: string | null;
+  visual_format?: "svg" | "html" | null;
   stimulus_source_image_path?: string | null;
+  source_document_id?: string | null;
+  source_page_number?: number | null;
+  source_page_available?: boolean;
   stimulus_source_image_url?: string | null;
   review_source_image_path?: string | null;
   review_source_image_url?: string | null;

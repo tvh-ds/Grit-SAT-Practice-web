@@ -1,3 +1,6 @@
+import VisualCode from "../../components/VisualCode";
+import { DrivePdfPicker } from "../../components/DrivePdfPicker";
+import { useSourcePage } from "../../lib/useSourcePage";
 import { deferComponent } from "../../components/deferComponent";
 import { useCallback, useEffect, useRef, useState, type ChangeEvent, type FormEvent } from "react";
 import { useNavigate, useParams } from "react-router-dom";
@@ -236,6 +239,21 @@ export default function ImportDetailPage() {
         <div className="login-error" role="alert" style={{ marginBottom: 14, display: "flex", justifyContent: "space-between", alignItems: "center", gap: 12 }}>
           <span>{error}</span>
           <Button type="button" variant="ghost" size="sm" onClick={() => setError(null)}>Dismiss</Button>
+        </div>
+      )}
+      {!importInfo.generated_test_id && !bankPublication && !importInfo.source_document_id && (
+        <div className="card card-pad" style={{ marginBottom: 16 }}>
+          <strong>Original PDF in Drive</strong>
+          <p className="muted">Select the original PDF to verify it against this import. Existing files remain protected until verification succeeds.</p>
+          <DrivePdfPicker busy={busy} onSelect={async (fileId) => {
+            setBusy(true); setError(null);
+            try {
+              const token = await getToken();
+              await fnJson(`admin-pdf-imports/${importId}/bind-drive-source`, { method: "POST", token, body: { file_id: fileId } });
+              setDetails({}); await loadPage(offsetRef.current);
+            } catch (e) { setError(e instanceof Error ? e.message : "Source verification failed"); }
+            finally { setBusy(false); }
+          }} />
         </div>
       )}
       <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", gap: 12 }}>
@@ -923,6 +941,10 @@ function DraftEditor({
   const [cropOpen, setCropOpen] = useState(false);
   const [sourceOpen, setSourceOpen] = useState(false);
   const [showFull, setShowFull] = useState(false);
+  const sourceAvailable = Boolean(draft.source_page_available || draft.stimulus_source_image_url || draft.review_source_image_url);
+  const sourcePage = useSourcePage(draft.pdf_import_id, draft.id, Boolean(draft.source_document_id && (cropOpen || sourceOpen || showFull)));
+  const sourcePageUrl = draft.source_document_id ? sourcePage.url : (draft.stimulus_source_image_url ?? draft.review_source_image_url);
+
   const [savedNote, setSavedNote] = useState<string | null>(null);
   const [imageFile, setImageFile] = useState<File | null>(null);
   const [imagePreview, setImagePreview] = useState<string | null>(null);
@@ -1025,28 +1047,8 @@ function DraftEditor({
   }
 
   async function resetCrop() {
-    setBusy(true);
-    try {
-      const token = await getToken();
-      const key = draft.source_question_id ?? String(draft.source_question_number);
-      const fullPage = draft.stimulus_source_image_path ?? `imports/${draft.pdf_import_id}/stimuli/${key}-page-${draft.page_number}.png`;
-      await fnJson(`admin-pdf-imports/${draft.pdf_import_id}/drafts/${draft.id}`, {
-        method: "PATCH",
-        token,
-        body: {
-          stimulus_image_path: fullPage,
-          stimulus_crop_rect: null,
-          stimulus_crop_source: "full_page",
-          stimulus_crop_status: "confirmed",
-        },
-      });
-      setShowFull(false);
-      onSaved();
-    } catch (e) {
-      onError(e instanceof Error ? e.message : "Reset failed");
-    } finally {
-      setBusy(false);
-    }
+    setShowFull(true);
+    setCropOpen(true);
   }
 
   async function removeImage() {
@@ -1176,7 +1178,7 @@ function DraftEditor({
           Source Q{draft.source_question_number ?? "?"} — {draft.section === "math" ? "Math" : "Reading & Writing"} ({draft.question_type === "multiple_choice" ? "Multiple choice" : "Student-produced"})
         </h3>
         <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
-          {(draft.review_source_image_url ?? draft.stimulus_source_image_url) && (
+          {sourceAvailable && (
             <Button size="sm" variant="outline" onClick={() => setSourceOpen(true)}>View source image</Button>
           )}
           {draft.parser_metadata?.manual_entry && <Pill tone="blue">Manual entry</Pill>}
@@ -1224,7 +1226,8 @@ function DraftEditor({
         </div>
       )}
 
-      {draft.has_visual_stimulus && !draft.stimulus_image_url && (
+      <VisualCode code={draft.visual_code} format={draft.visual_format} />
+      {draft.has_visual_stimulus && !draft.visual_code && !draft.stimulus_image_url && (
         <div style={{ marginTop: 12 }}>
           <label className="field-label">Stimulus Image</label>
           <div className="draft-visual-missing">
@@ -1236,7 +1239,7 @@ function DraftEditor({
         </div>
       )}
 
-      {draft.stimulus_image_url && (
+      {(!draft.visual_code && (draft.stimulus_image_url || (draft.has_visual_stimulus && sourceAvailable))) && (
         <>
           <label className="field-label" style={{ marginTop: 12 }}>
             Stimulus Image{" "}
@@ -1247,28 +1250,28 @@ function DraftEditor({
               {draft.has_visual_stimulus && draft.stimulus_crop_status !== "pending" && draft.stimulus_crop_source === "auto" && "(auto-cropped)"}
             </span>
           </label>
-          <img
-            src={showFull ? (draft.stimulus_source_image_url ?? draft.stimulus_image_url) : draft.stimulus_image_url}
+          {(showFull ? sourcePageUrl : draft.stimulus_image_url) && <img
+            src={(showFull ? (sourcePageUrl ?? draft.stimulus_image_url) : draft.stimulus_image_url) ?? undefined}
             alt={`Stimulus for Q${draft.source_question_number}`}
             style={{ maxWidth: "100%", border: "1px solid var(--border)", borderRadius: 8, marginTop: 4 }}
-          />
+          />}
           <div style={{ display: "flex", gap: 8, marginTop: 8, flexWrap: "wrap" }}>
-            {draft.has_visual_stimulus && draft.stimulus_crop_status === "pending" && (
+            {draft.has_visual_stimulus && draft.stimulus_image_path && draft.stimulus_crop_source !== "full_page" && draft.stimulus_crop_status === "pending" && (
               <Button size="sm" disabled={busy} onClick={() => void confirmCrop()}>✓ Confirm crop</Button>
             )}
-            {draft.stimulus_source_image_url && (
+            {sourceAvailable && (
               <Button size="sm" variant="outline" disabled={busy} onClick={() => setShowFull((v) => !v)}>
                 {showFull ? "View crop" : "View full page"}
               </Button>
             )}
-            <Button size="sm" variant="outline" disabled={busy || !draft.stimulus_source_image_url} title={draft.stimulus_source_image_url ? "Adjust on the full-page source" : "Full-page source not available"} onClick={() => setCropOpen(true)}>✂ Adjust crop</Button>
-            <Button size="sm" variant="ghost" disabled={busy} onClick={() => void resetCrop()}>Reset to full page</Button>
+            <Button size="sm" variant="outline" disabled={busy || !sourceAvailable} title={sourceAvailable ? "Adjust on the full-page source" : "Full-page source not available"} onClick={() => setCropOpen(true)}>✂ Adjust crop</Button>
+            <Button size="sm" variant="ghost" disabled={busy} onClick={() => void resetCrop()}>Choose a new crop</Button>
             <Button size="sm" variant="ghost" disabled={busy} onClick={() => void removeImage()}>Remove image</Button>
           </div>
         </>
       )}
 
-      <div className="panel" style={{ marginTop: 12 }}>
+      {!draft.visual_code && <div className="panel" style={{ marginTop: 12 }}>
         <label className="field-label">Add or replace stimulus image</label>
         {imagePreview && (
           <div style={{ marginBottom: 10 }}>
@@ -1284,7 +1287,7 @@ function DraftEditor({
           {imageFile && <Button size="sm" variant="ghost" disabled={busy} onClick={() => setImageFile(null)}>Clear selection</Button>}
         </div>
         <p className="muted" style={{ fontSize: 12, margin: "6px 0 0" }}>PNG, JPEG, or WebP up to 10 MB. Newly added images start as full-page crops and must be reviewed before approval.</p>
-      </div>
+      </div>}
 
       {draft.question_type === "multiple_choice" && (
         <div style={{ marginTop: 12 }}>
@@ -1440,10 +1443,12 @@ function DraftEditor({
         {draft.review_state === "review" && <Button disabled={busy} onClick={() => void approve()}>{busy ? "Saving…" : "Approve Draft"}</Button>}
       </div>
 
-      {cropOpen && (draft.stimulus_source_image_url ?? draft.stimulus_image_url) && (
+      {sourcePage.error && <p className="login-error" role="alert">{sourcePage.error}</p>}
+      {(cropOpen || sourceOpen || showFull) && draft.source_document_id && !sourcePage.url && !sourcePage.error && <p className="muted">Loading original page from Drive…</p>}
+      {cropOpen && (sourcePageUrl ?? draft.stimulus_image_url) && !(!sourcePageUrl && draft.source_document_id) && (
         <CropImageModal
           title={`Crop Graph — Q${draft.source_question_number}`}
-          src={(draft.stimulus_source_image_url ?? draft.stimulus_image_url)!}
+          src={(sourcePageUrl ?? draft.stimulus_image_url)!}
           initialRect={draft.stimulus_crop_source === "auto" ? (draft.stimulus_crop_rect ?? null) : null}
           onCancel={() => {
             if (!busy) setCropOpen(false);
@@ -1451,10 +1456,10 @@ function DraftEditor({
           onSave={saveCrop}
         />
       )}
-      {sourceOpen && (draft.review_source_image_url ?? draft.stimulus_source_image_url) && (
+      {sourceOpen && sourcePageUrl && (
         <Modal title={`Source image — Q${draft.source_question_number}`} onClose={() => setSourceOpen(false)}>
           <img
-            src={(draft.review_source_image_url ?? draft.stimulus_source_image_url)!}
+            src={sourcePageUrl!}
             alt={`Source page for Q${draft.source_question_number}`}
             style={{ display: "block", maxWidth: "100%", maxHeight: "75vh", margin: "0 auto", objectFit: "contain" }}
           />

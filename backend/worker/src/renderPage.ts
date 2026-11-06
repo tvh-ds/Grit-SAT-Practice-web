@@ -19,6 +19,10 @@ async function renderPagePngMupdf(pdfBuffer: Uint8Array, pageNumber: number, sca
   const doc = mupdf.Document.openDocument(new Uint8Array(pdfBuffer), "application/pdf");
   try {
     const page = doc.loadPage(pageNumber - 1);
+    const bounds = page.getBounds();
+    const width = Math.ceil((bounds[2] - bounds[0]) * scale);
+    const height = Math.ceil((bounds[3] - bounds[1]) * scale);
+    if (width <= 0 || height <= 0 || width * height > 40_000_000) throw new Error("PDF page exceeds the safe rendering size");
     const matrix = mupdf.Matrix.scale(scale, scale);
     // alpha=false -> opaque white background, matching previous pdfjs output.
     const pixmap = page.toPixmap(matrix, mupdf.ColorSpace.DeviceRGB, false);
@@ -40,6 +44,7 @@ async function renderPagePngPdfjs(pdfBuffer: Uint8Array, pageNumber: number, sca
   const doc = await getDocument({ data: pdfBuffer.slice() }).promise;
   const page = await doc.getPage(pageNumber);
   const viewport = page.getViewport({ scale });
+  if (viewport.width * viewport.height > 40_000_000) { await doc.destroy(); throw new Error("PDF page exceeds the safe rendering size"); }
   const canvas = createCanvas(Math.ceil(viewport.width), Math.ceil(viewport.height));
   await page.render({ canvasContext: canvas.getContext("2d"), viewport }).promise;
   return Buffer.from(await canvas.encode("png"));

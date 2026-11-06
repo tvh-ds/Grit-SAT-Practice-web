@@ -5,6 +5,7 @@ import { Pipeline } from "./pipeline";
 import { AiIngestionReviewService } from "./aiReview";
 import { createSupabase } from "./supabase";
 import { retryPendingImportStorageCleanup } from "../../supabase/functions/_shared/importStorageCleanup";
+import { installSourceRoutes } from "./sourceRoutes";
 
 function digest(value: string): Buffer {
   return createHash("sha256").update(value).digest();
@@ -38,6 +39,8 @@ export function createApp(config: ReturnType<typeof loadConfig>) {
     }
     return true;
   }
+
+  installSourceRoutes(app, storageClient, requireWorkerAuth);
 
   app.get("/health", (_req, res) => {
     res.json({ ok: true, pollIntervalMs: config.pollIntervalMs, aiIngestionReviewEnabled: config.aiIngestionReviewEnabled });

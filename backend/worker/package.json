@@ -12,6 +12,8 @@
     "typecheck": "tsc --noEmit",
     "verify:corpus": "tsx scripts/verify-corpus.ts",
     "eval:ai-ingestion": "tsx scripts/evaluate-ai-ingestion.ts",
+    "drive:watch": "tsx scripts/drive-ingestion.ts",
+    "drive:scan": "tsx scripts/drive-ingestion.ts --once",
     "smoke:three-state-staging": "tsx scripts/smoke-three-state-staging.ts"
   },
   "dependencies": {
@@ -19,6 +21,7 @@
     "@supabase/supabase-js": "^2.45.4",
     "dotenv": "^16.4.5",
     "express": "^4.22.3",
+    "google-auth-library": "11.3.2",
     "mupdf": "^1.28.1",
     "pdfjs-dist": "^4.10.38"
   },
@@ -32,7 +35,8 @@
     "vitest": "^2.1.8"
   },
   "overrides": {
-    "body-parser": "1.20.8",
-    "qs": "6.16.0"
+    "body-parser": "1.20.9",
+    "proxy-addr": "2.0.8",
+    "qs": "6.16.1"
   }
 }

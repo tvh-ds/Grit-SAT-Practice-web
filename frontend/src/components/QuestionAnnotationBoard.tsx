@@ -1,3 +1,4 @@
+import VisualCode from "./VisualCode";
 import { useEffect, useLayoutEffect, useRef, useState } from "react";
 import type { PointerEvent, ReactNode } from "react";
 import { createPortal } from "react-dom";
@@ -11,7 +12,7 @@ import "../styles/review-annotations.css";
 
 export type AnnotationQuestion = {
   question_id: string; question_number: number; prompt: string | null;
-  passage?: ReviewPassage | null; stimulus_image_url?: string | null;
+  passage?: ReviewPassage | null; stimulus_image_url?: string | null; visual_code?: string | null; visual_format?: "svg" | "html" | null;
   choices: { id: string; label: string; text: string; is_correct: boolean }[];
   correct_answer: string | null; your_answer?: string | null;
 };
@@ -25,7 +26,8 @@ export function BoardQuestion({ question }: { question: AnnotationQuestion }) {
       {question.passage.title && <strong>{question.passage.title}</strong>}
       <MathText text={question.passage.content} />
     </div>}
-    {question.stimulus_image_url && <img src={question.stimulus_image_url} alt="Question stimulus" onError={() => setImageError(true)} />}
+    <VisualCode code={question.visual_code} format={question.visual_format} />
+    {!question.visual_code && question.stimulus_image_url && <img src={question.stimulus_image_url} alt="Question stimulus" onError={() => setImageError(true)} />}
     {imageError && <p role="alert">The question image could not load. Reopen the assignment to refresh it before exporting.</p>}
     <div className="annotation-prompt"><MathText text={question.prompt ?? "Question"} /></div>
     {question.choices.map(c => <div className="annotation-choice" key={c.id}>

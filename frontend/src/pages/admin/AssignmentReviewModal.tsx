@@ -1,3 +1,4 @@
+import VisualCode from "../../components/VisualCode";
 import { useEffect, useMemo, useState } from "react";
 import { fnJson, getToken } from "../../lib/supabase";
 import type { ReviewItem, ScoreDetail } from "../../lib/types";
@@ -105,7 +106,8 @@ function ReviewCard({ item, annotate }: { item: ReviewItem; annotate: React.Reac
         {item.module_name} · {[item.domain, item.skill].filter(Boolean).join(" · ") || "No topic"}
       </div>
       <PassageBlock passage={item.passage} compact />
-      {item.stimulus_image_url && (
+      <VisualCode code={item.visual_code} format={item.visual_format} />
+      {!item.visual_code && item.stimulus_image_url && (
         <img src={item.stimulus_image_url} alt="Question stimulus" style={{ maxWidth: "100%", maxHeight: 260, objectFit: "contain", borderRadius: 10, marginTop: 10 }} />
       )}
       {item.question_type === "multiple_choice" ? (

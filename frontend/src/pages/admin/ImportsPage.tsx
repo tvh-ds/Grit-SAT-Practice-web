@@ -1,7 +1,8 @@
-import { useEffect, useState, type ChangeEvent } from "react";
+import { useEffect, useState } from "react";
 import { Link } from "react-router-dom";
-import { supabase, fnJson, getToken } from "../../lib/supabase";
+import { fnJson, getToken } from "../../lib/supabase";
 import type { ImportReadinessMetric, PdfImport } from "../../lib/types";
+import { DrivePdfPicker } from "../../components/DrivePdfPicker";
 import { Spinner, fmtDate } from "../../components/ui";
 import { polishTestTitle } from "../../lib/testTitle";
 
@@ -74,34 +75,14 @@ export default function ImportsPage() {
     void load().catch((e) => setError(e.message));
   }, []);
 
-  async function onFile(e: ChangeEvent<HTMLInputElement>) {
-    const file = e.target.files?.[0];
-    if (!file) return;
-    setUploading(true);
-    setError(null);
+  async function importDrive(fileId: string) {
+    setUploading(true); setError(null);
     try {
       const token = await getToken();
-      const path = `uploads/${crypto.randomUUID()}.pdf`;
-      const { error: upErr } = await supabase.storage.from("pdf-imports").upload(path, file, { upsert: true });
-      if (upErr) throw new Error(upErr.message);
-      // Upload-only workflow: the worker parses the whole PDF automatically
-      // and decides OCR itself. No scope or OCR options are sent.
-      await fnJson("admin-pdf-imports", {
-        method: "POST",
-        token,
-        body: {
-          storage_path: path,
-          original_filename: file.name,
-          file_size: file.size,
-        },
-      });
+      await fnJson("admin-pdf-imports/drive-import", { method: "POST", token, body: { file_id: fileId } });
       await load();
-    } catch (err) {
-      setError(err instanceof Error ? err.message : "Upload failed");
-    } finally {
-      setUploading(false);
-      e.target.value = "";
-    }
+    } catch (err) { setError(err instanceof Error ? err.message : "Import failed"); }
+    finally { setUploading(false); }
   }
 
   const counts = {
@@ -116,16 +97,11 @@ export default function ImportsPage() {
     <div>
       <div className="section-label">Imports</div>
       <h1 className="page-title"><span className="hl-muted">PDF</span> <span className="hl-bright">imports</span></h1>
-      <p className="page-sub">Upload a full SAT PDF — the system detects Reading &amp; Writing and Math modules automatically and parses the whole file. OCR is applied automatically only to modules that need it.</p>
+      <p className="page-sub">Select an original full SAT PDF from Drive — the system detects Reading &amp; Writing and Math modules automatically and parses the whole file. OCR is applied automatically only to modules that need it.</p>
 
       <div className="card card-pad" style={{ maxWidth: 560, marginBottom: 18 }}>
-        <div className="toolbar">
-          <label className="btn btn-primary" aria-label="Import PDF: Import full-length test for ingestion and review" style={{ cursor: uploading ? "not-allowed" : "pointer" }}>
-            {uploading ? "Importing…" : "+ Import PDF"}
-            <input type="file" accept="application/pdf" style={{ display: "none" }} onChange={(e) => void onFile(e)} disabled={uploading} />
-          </label>
-        </div>
-        <p className="muted" style={{ margin: "10px 0 0", fontSize: 12.5 }}>Import full-length test for ingestion and review</p>
+        <DrivePdfPicker onSelect={importDrive} busy={uploading} />
+        <p className="muted" style={{ margin: "10px 0 0", fontSize: 12.5 }}>Choose a full-length SAT PDF from its original Drive folder. Only saved question crops are stored in Supabase.</p>
       </div>
 
       {error && <div className="login-error">{error}</div>}

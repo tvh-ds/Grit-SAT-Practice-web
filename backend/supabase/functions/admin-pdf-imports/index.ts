@@ -9,9 +9,30 @@ import { moduleGroup, groupByModuleKey } from "../_shared/modules.ts";
 import { summarizePdfImportReadiness, type ImportReadinessDraft } from "../_shared/importReadiness.ts";
 import { tryCleanupImportedTestStorage } from "../_shared/importStorageCleanup.ts";
 import { isCollegeBoardRwBank } from "../_shared/collegeboardBank.ts";
+import { validateVisualCode } from "../_shared/visualCode.ts";
 
 const WORKER_URL = Deno.env.get("WORKER_URL");
 const WORKER_AUTH_TOKEN = Deno.env.get("WORKER_AUTH_TOKEN");
+
+async function sourceWorker(path: string, body?: unknown): Promise<Response> {
+  if (!WORKER_URL || !WORKER_AUTH_TOKEN) throw new HttpError(503, "The PDF-processing service is not configured");
+  try {
+    const response = await fetch(`${WORKER_URL}${path}`, {
+      method: body === undefined ? "GET" : "POST",
+      headers: { Authorization: `Bearer ${WORKER_AUTH_TOKEN}`, "Content-Type": "application/json" },
+      body: body === undefined ? undefined : JSON.stringify(body),
+      signal: AbortSignal.timeout(120_000), redirect: "error",
+    });
+    if (!response.ok) {
+      const details = await response.json().catch(() => null);
+      throw new HttpError(response.status, details?.error || "The original PDF could not be loaded");
+    }
+    return response;
+  } catch (e) {
+    if (e instanceof HttpError) throw e;
+    throw new HttpError(503, "The PDF-processing service is unavailable; retry when it is online");
+  }
+}
 
 async function triggerWorker(importId: string): Promise<void> {
   if (!WORKER_URL) return;
@@ -39,7 +60,7 @@ async function loadReviewSummary(svc: ReturnType<typeof serviceClient>, importId
     svc.from("ai_ingestion_review_jobs")
       .select("id,status,model,prompt_version,reviewed_drafts,failed_drafts,estimated_cost_usd,started_at,finished_at,error_category")
       .eq("pdf_import_id", importId).order("created_at", { ascending: false }).limit(1).maybeSingle(),
-    svc.from("draft_questions").select("review_state,status,suggested_answer,has_visual_stimulus,stimulus_crop_status,assigned_module_name,question_type,choices:draft_question_choices(id)").eq("pdf_import_id", importId),
+    svc.from("draft_questions").select("review_state,status,suggested_answer,has_visual_stimulus,stimulus_crop_status,visual_code,assigned_module_name,question_type,choices:draft_question_choices(id)").eq("pdf_import_id", importId),
     svc.from("pdf_imports").select("deterministic_review_status,text_quality").eq("id", importId).maybeSingle(),
   ]);
   if (jobErr) throw new HttpError(500, jobErr.message);
@@ -74,6 +95,7 @@ function fullTestAssignedCountsError(quality: unknown, drafts: Array<{ assigned_
 
 async function attachDraftStimulusUrls(svc: ReturnType<typeof serviceClient>, drafts: Array<Record<string, unknown>>): Promise<void> {
   for (const draft of drafts) {
+    draft.source_page_available = Boolean(draft.source_document_id || draft.stimulus_source_image_path || draft.review_source_image_path);
     const path = draft.stimulus_image_path;
     if (typeof path === "string" && path) {
       const { data } = await svc.storage.from("question-assets").createSignedUrl(path, 60 * 60);
@@ -180,6 +202,37 @@ Deno.serve(async (req) => {
     const svc = serviceClient();
     const seg = pathSegments(req);
     const id = seg[1];
+
+    if (req.method === "GET" && id === "drive-files" && seg.length === 2) {
+      const q = new URL(req.url).searchParams.get("q") ?? "";
+      const response = await sourceWorker(`/drive/files?q=${encodeURIComponent(q.slice(0, 200))}`);
+      return json(await response.json());
+    }
+    if (req.method === "POST" && id === "drive-import" && seg.length === 2) {
+      const body = await req.json();
+      if (typeof body.file_id !== "string" || !/^[A-Za-z0-9_-]{10,200}$/.test(body.file_id)) return error("Select a Drive PDF", 422);
+      const response = await sourceWorker("/drive/register", { file_id: body.file_id });
+      const { source } = await response.json();
+      const { data: existing, error: existingError } = await svc.from("pdf_imports").select("*").eq("source_document_id", source.id).not("status", "in", "(failed,cancelled)").limit(1).maybeSingle();
+      if (existingError) throw new HttpError(500, "Unable to check existing imports");
+      if (existing) return json({ import: existing, already_imported: true });
+      const { data, error: createError } = await svc.from("pdf_imports").insert({
+        storage_path: null, source_document_id: source.id, source_state: "verified", original_filename: source.original_filename,
+        file_size: source.file_size, ocr_mode: "auto", content_scope: "full_test", created_by: ctx.user.id,
+      }).select("*").single();
+      if (createError) throw new HttpError(500, "Unable to register Drive import");
+      await triggerWorker(data.id);
+      return json({ import: data }, 201);
+    }
+    if (req.method === "GET" && seg.length === 5 && seg[2] === "drafts" && seg[4] === "source-page") {
+      const response = await sourceWorker("/source-page", { import_id: id, draft_id: seg[3] });
+      return new Response(response.body, { headers: { ...corsHeaders, "Content-Type": "image/png", "Cache-Control": "private, no-store", "X-Content-Type-Options": "nosniff" } });
+    }
+    if (req.method === "POST" && seg.length === 3 && seg[2] === "bind-drive-source") {
+      const body = await req.json();
+      const response = await sourceWorker("/drive/register", { file_id: body.file_id, import_id: id });
+      return json(await response.json());
+    }
 
     if (req.method === "GET" && seg.length === 1) {
       const { data, error: err } = await svc
@@ -348,25 +401,8 @@ Deno.serve(async (req) => {
     }
 
     if (req.method === "POST" && seg.length === 1) {
-      const body = pdfImportCreateSchema.parse(await req.json());
-      // Upload-only workflow: the worker always parses the whole PDF and
-      // decides OCR itself. Per-import OCR/scope choices are not exposed.
-      const { data, error: err } = await svc
-        .from("pdf_imports")
-        .insert({
-          storage_path: body.storage_path,
-          original_filename: body.original_filename,
-          file_size: body.file_size ?? null,
-          ocr_mode: "auto",
-          content_scope: "full_test",
-          target_module: null,
-          created_by: ctx.user.id,
-        })
-        .select("*")
-        .single();
-      if (err) return error(err.message, 500);
-      await triggerWorker(data.id);
-      return json({ import: data }, 201);
+      return error("Place the original PDF in the configured Google Drive folders, then import it from Drive.", 409);
+
     }
 
     if (!id) return error("Not found", 404);
@@ -423,7 +459,8 @@ Deno.serve(async (req) => {
       if (!isCollegeBoardRwBank(id)) return error("Practice-bank publishing is only available for the existing College Board R&W deck.", 409);
       const { data, error: rpcErr } = await svc.rpc("publish_collegeboard_rw_bank", { p_admin_id: ctx.user.id });
       if (rpcErr) return error(rpcErr.message, 409);
-      return json({ ok: true, ...data });
+      const storage_cleanup = await tryCleanupImportedTestStorage(svc, id);
+      return json({ ok: true, ...data, storage_cleanup });
     }
 
     if (req.method === "POST" && seg.length === 3 && seg[2] === "approve-import") {
@@ -773,9 +810,17 @@ Deno.serve(async (req) => {
           return error(`Draft save validation failed: ${issue.path.join(".") || "request"} ${issue.message}`, 422, parsed.error.issues);
         }
         const body = parsed.data;
+        if (body.visual_code !== undefined || body.visual_format !== undefined) {
+          if (body.visual_code !== null || body.visual_format !== null) {
+            const reason = validateVisualCode(body.visual_code, body.visual_format);
+            if (reason) return error(reason, 422);
+          }
+        }
         const { assigned_module_name, display_order, expected_updated_at, ...patch } = body;
         const updates: Record<string, unknown> = { ...patch };
         if (updates.has_visual_stimulus === false) {
+          updates.visual_code = null;
+          updates.visual_format = null;
           updates.stimulus_image_path = null;
           updates.stimulus_source_image_path = null;
           updates.stimulus_crop_rect = null;
@@ -816,7 +861,7 @@ Deno.serve(async (req) => {
         if (importGate?.deterministic_review_status === "failed") return error("Questions from a structurally failed import cannot be approved", 409);
         const { data: draft, error: dErr } = await svc
           .from("draft_questions")
-          .select("id, pdf_import_id, has_visual_stimulus, stimulus_crop_status, question_id, assigned_module_name, section, review_state")
+          .select("id, pdf_import_id, has_visual_stimulus, stimulus_crop_status, visual_code, question_id, assigned_module_name, section, review_state")
           .eq("id", draftId)
           .eq("pdf_import_id", id)
           .maybeSingle();
@@ -825,7 +870,7 @@ Deno.serve(async (req) => {
         if (body.section !== undefined && body.section !== draft.section) {
           return error("Change the assigned module in the question editor to change its section", 422);
         }
-        if (draft.has_visual_stimulus && draft.stimulus_crop_status !== "confirmed") {
+        if (draft.has_visual_stimulus && !draft.visual_code && draft.stimulus_crop_status !== "confirmed") {
           return error("Crop review required: confirm or adjust this visual draft's crop before approving", 422);
         }
         if (draft.question_id) {
@@ -912,13 +957,14 @@ Deno.serve(async (req) => {
       if (req.method === "POST" && seg[4] === "confirm-crop") {
         const { data: draft, error: cErr } = await svc
           .from("draft_questions")
-          .select("id, has_visual_stimulus")
+          .select("id, has_visual_stimulus, stimulus_image_path, stimulus_crop_source")
           .eq("id", draftId)
           .eq("pdf_import_id", id)
           .maybeSingle();
         if (cErr) return error(cErr.message, 500);
         if (!draft) return error("Draft not found", 404);
         if (!draft.has_visual_stimulus) return error("Only visual drafts require crop review", 422);
+        if (!draft.stimulus_image_path || draft.stimulus_crop_source === "full_page") return error("Save a cropped image before confirming it", 409);
         const { error: uErr } = await svc
           .from("draft_questions")
           .update({ stimulus_crop_status: "confirmed" })
@@ -951,6 +997,12 @@ Deno.serve(async (req) => {
 
       if (req.method === "PATCH") {
         const body = updateDraftSchema.parse(await req.json());
+        if (body.visual_code !== undefined || body.visual_format !== undefined) {
+          if (body.visual_code !== null || body.visual_format !== null) {
+            const reason = validateVisualCode(body.visual_code, body.visual_format);
+            if (reason) return error(reason, 422);
+          }
+        }
         if (body.section !== undefined) return error("Change the assigned module in the question editor to change its section", 422);
         const { prompt, choices, ...rest } = body;
         const updates: Record<string, unknown> = { ...rest };
@@ -959,6 +1011,8 @@ Deno.serve(async (req) => {
         // field so no stale crop review requirement or orphan path remains.
         // Storage objects are kept — full-page sources may be shared.
         if (updates.has_visual_stimulus === false) {
+          updates.visual_code = null;
+          updates.visual_format = null;
           updates.stimulus_image_path = null;
           updates.stimulus_source_image_path = null;
           updates.stimulus_crop_rect = null;

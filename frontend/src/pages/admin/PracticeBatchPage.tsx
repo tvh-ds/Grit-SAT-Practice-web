@@ -1,3 +1,4 @@
+import VisualCode from "../../components/VisualCode";
 import { deferComponent } from "../../components/deferComponent";
 import { adminReturnPath } from "../../lib/adminNavigation";
 import { useEffect, useMemo, useState } from "react";
@@ -188,7 +189,8 @@ export default function PracticeBatchPage() {
                 </span>
               </div>
               <PassageBlock passage={q.passage} compact />
-              {q.stimulus_image_url && <img src={q.stimulus_image_url} alt="Question stimulus" style={{ maxWidth: "100%", maxHeight: 260, objectFit: "contain", marginBottom: 12 }} />}
+              <VisualCode code={q.visual_code} format={q.visual_format} />
+              {!q.visual_code && q.stimulus_image_url && <img src={q.stimulus_image_url} alt="Question stimulus" style={{ maxWidth: "100%", maxHeight: 260, objectFit: "contain", marginBottom: 12 }} />}
               <p style={{ fontWeight: 600, fontSize: 14, lineHeight: 1.6, margin: "0 0 10px" }}>
                 <MathText text={q.prompt} />
               </p>

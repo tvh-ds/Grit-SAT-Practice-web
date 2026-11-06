@@ -4,6 +4,7 @@ import type { WorkerConfig } from "./config";
 import { createSupabase } from "./supabase";
 import { cropPng, inkRatio } from "./cropStimulus";
 import { renderPagePng } from "./renderPage";
+import { draftSourcePage } from "./sourceDocuments";
 import {
   REVIEW_PROMPT_VERSION,
   RISK_POLICY_VERSION,
@@ -148,6 +149,7 @@ export class AiIngestionReviewService {
     if (!importFailed) await this.persistReviewSourceImages(snapshot, risksByDraft);
     let aiDrafts = 0;
     for (const draft of snapshot.drafts) {
+      if (draft.visual_code) continue;
       const risks = risksByDraft.get(draft.id) ?? [];
       const state: ReviewState = importFailed ? "failed" : risks.length ? "review" : "complete";
       if (!importFailed && hasMinorRisk(risks) && !hasMajorRisk(risks)) aiDrafts++;
@@ -176,7 +178,7 @@ export class AiIngestionReviewService {
   }
 
   private async persistReviewSourceImages(snapshot: ReviewSnapshot, risksByDraft: Map<string, ReviewRisk[]>): Promise<void> {
-    const targets = snapshot.drafts.filter((draft) => (risksByDraft.get(draft.id)?.length ?? 0) > 0 && draft.page_number > 0 && !draft.review_source_image_path);
+    const targets = snapshot.drafts.filter((draft) => !draft.visual_code && !draft.source_document_id && (risksByDraft.get(draft.id)?.length ?? 0) > 0 && draft.page_number > 0 && !draft.review_source_image_path);
     if (!targets.length || !snapshot.importRow.storage_path) return;
     const pdf = new Uint8Array(await this.downloadImport(snapshot.importRow.storage_path));
     const pagePaths = new Map<number, string>();
@@ -221,7 +223,7 @@ export class AiIngestionReviewService {
 
       const work = snapshot.drafts.map((draft) => {
         const risks = draftRisks(draft as Parameters<typeof draftRisks>[0]);
-        const selected = hasMinorRisk(risks) && !hasMajorRisk(risks);
+        const selected = !draft.visual_code && hasMinorRisk(risks) && !hasMajorRisk(risks);
         return { draft, risks, selected, draftHash: this.draftSnapshotHash(draft, snapshot.pages) };
       });
       const selected = work.filter((item) => item.selected).slice(0, this.config.aiReviewMaxDrafts);
@@ -292,7 +294,7 @@ export class AiIngestionReviewService {
   private async loadSnapshot(importId: string): Promise<ReviewSnapshot> {
     const [{ data: importRow, error: importError }, { data: drafts, error: draftError }, { data: pages, error: pageError }] = await Promise.all([
       this.svc.from("pdf_imports").select("id,status,storage_path,text_quality,updated_at,deterministic_review_status").eq("id", importId).maybeSingle(),
-      this.svc.from("draft_questions").select("id,pdf_import_id,page_number,section,question_type,prompt,passage_text,suggested_answer,source_question_number,source_module_name,source_module_position,has_visual_stimulus,stimulus_image_path,stimulus_source_image_path,review_source_image_path,stimulus_crop_rect,stimulus_crop_source,stimulus_crop_status,parser_metadata,parser_original_snapshot,ai_repair_snapshot,updated_at,choices:draft_question_choices(label,text,position),answer_keys:draft_answer_keys(detected_answer,confidence,source_text,source_page,status)")
+      this.svc.from("draft_questions").select("id,pdf_import_id,page_number,source_document_id,source_page_number,section,question_type,prompt,passage_text,suggested_answer,source_question_number,source_module_name,source_module_position,has_visual_stimulus,visual_code,visual_format,stimulus_image_path,stimulus_source_image_path,review_source_image_path,stimulus_crop_rect,stimulus_crop_source,stimulus_crop_status,parser_metadata,parser_original_snapshot,ai_repair_snapshot,updated_at,choices:draft_question_choices(label,text,position),answer_keys:draft_answer_keys(detected_answer,confidence,source_text,source_page,status)")
         .eq("pdf_import_id", importId).order("page_number").order("source_question_number").order("id"),
       this.svc.from("pdf_import_pages").select("page_number,extracted_text,ocr_text,ocr_status").eq("pdf_import_id", importId).order("page_number"),
     ]);
@@ -337,12 +339,10 @@ export class AiIngestionReviewService {
       text: buildPrompt(draft, risks, evidencePages),
     }];
     const sourceImagePath = draft.review_source_image_path ?? draft.stimulus_source_image_path;
-    if (sourceImagePath) {
-      const { data, error } = await this.svc.storage.from("question-assets").download(sourceImagePath);
-      if (error || !data) throw new Error("source_evidence_missing: source page image is unavailable");
-      if (data.size > 10 * 1024 * 1024) throw new Error("source_evidence_too_large: source page exceeds 10 MB");
-      const base64 = Buffer.from(await data.arrayBuffer()).toString("base64");
-      content.push({ type: "image_url", image_url: { url: `data:${data.type || "image/png"};base64,${base64}`, detail: "high" } });
+    if (draft.source_document_id || sourceImagePath) {
+      const source = await draftSourcePage(this.svc, draft);
+      if (source.length > 10 * 1024 * 1024) throw new Error("source_evidence_too_large: source page exceeds 10 MB");
+      content.push({ type: "image_url", image_url: { url: `data:image/png;base64,${source.toString("base64")}`, detail: "high" } });
     }
 
     let lastError: Error | null = null;
@@ -437,10 +437,10 @@ export class AiIngestionReviewService {
       if (field === "stimulus_crop" && value && typeof value === "object") {
         const box = value as Row; const nums = [box.x, box.y, box.w, box.h];
         if (nums.every((n) => typeof n === "number" && Number.isFinite(n)) && box.x >= 0 && box.y >= 0 && box.w >= 0.02 && box.h >= 0.02 && box.x + box.w <= 1 && box.y + box.h <= 1) {
-          if (draft.stimulus_source_image_path) {
-            const { data: source } = await this.svc.storage.from("question-assets").download(draft.stimulus_source_image_path);
+          if (draft.source_document_id || draft.stimulus_source_image_path) {
+            const source = await draftSourcePage(this.svc, draft);
             if (source) {
-              const sourcePng = Buffer.from(await source.arrayBuffer());
+              const sourcePng = source;
               const { loadImage } = await import("@napi-rs/canvas"); const image = await loadImage(sourcePng);
               const rect = { x: Math.round(box.x * image.width), y: Math.round(box.y * image.height), w: Math.round(box.w * image.width), h: Math.round(box.h * image.height) };
               if (rect.w >= 24 && rect.h >= 24) {

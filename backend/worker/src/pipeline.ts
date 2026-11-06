@@ -1,5 +1,6 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
 import { randomUUID } from "node:crypto";
+import { importPdf } from "./sourceDocuments";
 import { stimulusAssetKey } from "./stimulusAssetKey";
 import { createSupabase } from "./supabase";
 import { extractText, analyzeTextQuality, type PageText } from "./extractor";
@@ -406,8 +407,13 @@ export class Pipeline {
     const t0 = Date.now();
     const fileName: string | null = typeof pdfImport.original_filename === "string" ? pdfImport.original_filename : null;
     try {
-      const buffer = await this.download(pdfImport.storage_path);
+      const buffer = await importPdf(this.svc, pdfImport);
       if (rebuilding) {
+        // Rebuilding deletes every draft; never silently discard converted code.
+        const { data: converted, error: convertedError } = await this.svc.from("draft_questions")
+          .select("id").eq("pdf_import_id", importId).not("visual_code", "is", null).limit(1);
+        if (convertedError) throw new Error(`check converted visuals: ${convertedError.message}`);
+        if (converted?.length) throw new Error("Cannot rebuild an import containing converted visuals; its drafts must be preserved");
         const { error: jobDeleteError } = await this.svc.from("ai_ingestion_review_jobs").delete().eq("pdf_import_id", importId);
         if (jobDeleteError) throw new Error(`clear old AI review jobs: ${jobDeleteError.message}`);
         const { error: draftDeleteError } = await this.svc.from("draft_questions").delete().eq("pdf_import_id", importId);
@@ -455,6 +461,7 @@ export class Pipeline {
             });
           }
           ocrSucceeded.push(pn);
+          console.log(`[pipeline] OCR ${importId}: page ${pn}/${totalPages} completed`);
         } catch (e) {
           const msg = e instanceof Error ? e.message : String(e);
           if (/auth failure|check COHERE_API_KEY/.test(msg)) {
@@ -1175,6 +1182,8 @@ export class Pipeline {
     }
     // One scale-3 render per page, shared by all its questions.
     const stimulusCache = new Map<number, { sourcePath: string; png: Buffer; W: number; H: number }>();
+    const { data: sourceImport, error: sourceError } = await this.svc.from("pdf_imports").select("source_document_id").eq("id", importId).single();
+    if (sourceError) throw new Error(`Load source document: ${sourceError.message}`);
 
     for (let qi = 0; qi < questions.length; qi++) {
       const q = questions[qi]!;
@@ -1244,6 +1253,8 @@ export class Pipeline {
           has_visual_stimulus: hasVisual,
           stimulus_image_path: stimulusImagePath,
           stimulus_source_image_path: stimulusSourcePath,
+          source_document_id: sourceImport.source_document_id,
+          source_page_number: q.pageNumber,
           stimulus_crop_rect: stimulusCropRect,
           stimulus_crop_source: stimulusCropSource,
           stimulus_crop_status: stimulusCropStatus,
@@ -1482,8 +1493,8 @@ export class Pipeline {
     boxes: NormBox[],
     cache: Map<number, { sourcePath: string; png: Buffer; W: number; H: number }>,
   ): Promise<{
-    activePath: string;
-    sourcePath: string;
+    activePath: string | null;
+    sourcePath: string | null;
     rect: { x: number; y: number; w: number; h: number } | null;
     source: "auto" | "full_page";
   }> {
@@ -1502,27 +1513,21 @@ export class Pipeline {
       } catch {
         console.warn(`[pipeline] stimulus render undecodable (page ${pageNumber}); auto-crop skipped`);
       }
-      const path = `imports/${importId}/stimuli/${sourceQuestionId}-page-${pageNumber}.png`;
-      const { error } = await this.svc.storage.from("question-assets").upload(path, png, {
-        contentType: "image/png",
-        upsert: true,
-      });
-      if (error) throw new Error(`upload stimulus ${path}: ${error.message}`);
-      entry = { sourcePath: path, png, W, H };
+      entry = { sourcePath: "", png, W, H };
       cache.set(pageNumber, entry);
     }
     if (boxes.length === 0 || entry.W <= 0 || entry.H <= 0) {
-      return { activePath: entry.sourcePath, sourcePath: entry.sourcePath, rect: null, source: "full_page" };
+      return { activePath: null, sourcePath: null, rect: null, source: "full_page" };
     }
     const decision = decideCrop(boxes, entry.W, entry.H);
     if (decision.kind !== "crop") {
       console.log(`[pipeline] auto-crop fallback (page ${pageNumber}): ${decision.reason}`);
-      return { activePath: entry.sourcePath, sourcePath: entry.sourcePath, rect: null, source: "full_page" };
+      return { activePath: null, sourcePath: null, rect: null, source: "full_page" };
     }
     const cropBuf = await cropPng(entry.png, decision.rect);
     if ((await inkRatio(cropBuf)) < CROP_MIN_INK) {
       console.log(`[pipeline] auto-crop rejected as blank (page ${pageNumber})`);
-      return { activePath: entry.sourcePath, sourcePath: entry.sourcePath, rect: null, source: "full_page" };
+      return { activePath: null, sourcePath: null, rect: null, source: "full_page" };
     }
     const cropPath = `imports/${importId}/stimuli/${sourceQuestionId}-auto-crop.png`;
     const { error: cErr } = await this.svc.storage.from("question-assets").upload(cropPath, cropBuf, {
@@ -1530,7 +1535,7 @@ export class Pipeline {
       upsert: true,
     });
     if (cErr) throw new Error(`upload auto-crop ${cropPath}: ${cErr.message}`);
-    return { activePath: cropPath, sourcePath: entry.sourcePath, rect: decision.rect, source: "auto" };
+    return { activePath: cropPath, sourcePath: null, rect: decision.rect, source: "auto" };
   }
 
   private async download(storagePath: string): Promise<ArrayBuffer> {

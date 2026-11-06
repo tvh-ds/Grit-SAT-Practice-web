@@ -56,7 +56,15 @@ export async function loadErrorLogPage(svc: SupabaseClient, studentId: string, u
       if (item.path && item.signedUrl) signedByPath.set(item.path, item.signedUrl);
     }
   }
+  const questionIds = [...new Set((result.items ?? []).map(item => item.question_id).filter((id): id is string => typeof id === "string" && Boolean(id)))];
+  const visualById = new Map<string, { visual_code: string | null; visual_format: string | null }>();
+  if (questionIds.length) {
+    const { data, error } = await svc.from("questions").select("id,visual_code,visual_format").in("id", questionIds);
+    if (error) throw new HttpError(500, "Unable to load question visuals");
+    for (const question of data ?? []) visualById.set(question.id, question);
+  }
   const items = (result.items ?? []).map(({ stimulus_image_path, ...item }) => ({
+    ...(visualById.get(String(item.question_id)) ?? {}),
     ...item,
     stimulus_image_url: stimulus_image_path ? signedByPath.get(stimulus_image_path) ?? null : null,
   }));

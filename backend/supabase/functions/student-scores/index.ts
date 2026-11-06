@@ -18,6 +18,8 @@ interface ReviewQuestion {
   explanation: string | null;
   correct_answer: string | null;
   stimulus_image_path: string | null;
+  visual_code: string | null;
+  visual_format: string | null;
   stimulus_image_url?: string | null;
   passage: { id: string; title: string | null; content: string } | null;
   choices: ReviewChoice[];
@@ -253,6 +255,8 @@ Deno.serve(async (req) => {
               correct_answer: q.correct_answer,
               stimulus_image_path: q.stimulus_image_path,
               stimulus_image_url: q.stimulus_image_url ?? null,
+          visual_code: q.visual_code ?? null,
+          visual_format: q.visual_format ?? null,
               passage: q.passage ?? null,
               choices: (q.choices ?? [])
                 .slice()

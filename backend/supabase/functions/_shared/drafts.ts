@@ -36,7 +36,7 @@ export async function approveDraft(
   if (dErr) throw new HttpError(500, dErr.message);
   if (!draft) throw new HttpError(404, "Draft not found");
 
-  if (!policy.allowIncomplete && draft.has_visual_stimulus && draft.stimulus_crop_status === "pending") {
+  if (!policy.allowIncomplete && draft.has_visual_stimulus && !draft.visual_code && draft.stimulus_crop_status === "pending") {
     throw new HttpError(422, "Crop review required: confirm or adjust this visual draft's crop before approving");
   }
 
@@ -78,6 +78,8 @@ export async function approveDraft(
       source_page: draft.page_number,
       source_question_id: draft.source_question_id ?? null,
       stimulus_image_path: draft.stimulus_image_path ?? null,
+      visual_code: draft.visual_code ?? null,
+      visual_format: draft.visual_format ?? null,
       status: "archived",
       created_by: adminId,
     })

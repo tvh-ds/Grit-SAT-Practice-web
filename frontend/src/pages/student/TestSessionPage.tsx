@@ -1,3 +1,4 @@
+import VisualCode from "../../components/VisualCode";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useNavigate, useParams } from "react-router-dom";
 import { createPortal } from "react-dom";
@@ -610,7 +611,8 @@ export default function TestSessionPage() {
               />
             </p>
 
-            {current.question.stimulus_image_url && (
+            <VisualCode code={current.question.visual_code} format={current.question.visual_format} />
+            {!current.question.visual_code && current.question.stimulus_image_url && (
               <div style={{ margin: "12px 0" }}>
                 <img
                   src={current.question.stimulus_image_url}

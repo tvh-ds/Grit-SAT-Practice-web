@@ -285,13 +285,13 @@ Deno.serve(async (req) => {
       for (const m of modules) {
         const { data: links, error: lErr } = await svc
           .from("test_module_questions")
-          .select("id, position, question:questions(id, prompt, question_type, correct_answer, stimulus_image_path, passage:passages(id, title, content), choices:question_choices(id, label, text, is_correct, position))")
+          .select("id, position, question:questions(id, prompt, question_type, correct_answer, stimulus_image_path, visual_code, visual_format, passage:passages(id, title, content), choices:question_choices(id, label, text, is_correct, position))")
           .eq("module_id", m.id)
           .order("position");
         if (lErr) return error(lErr.message, 500);
         for (const l of links ?? []) {
           const q = l.question as unknown as {
-            id: string; prompt: string; question_type: string; correct_answer: string | null; stimulus_image_path: string | null;
+            id: string; prompt: string; question_type: string; correct_answer: string | null; stimulus_image_path: string | null; visual_code: string | null; visual_format: string | null;
             passage: { id: string; title: string | null; content: string } | null;
             choices: Array<{ id: string; label: string; text: string; is_correct: boolean; position: number }>;
           } | null;
@@ -325,6 +325,7 @@ Deno.serve(async (req) => {
             question_type: q.question_type,
             correct_answer: q.correct_answer,
             stimulus_image_url: image?.data?.signedUrl ?? null,
+            visual_code: q.visual_code, visual_format: q.visual_format,
             passage: q.passage ?? null,
             choices: choiceCounts,
             correct_count: correct,

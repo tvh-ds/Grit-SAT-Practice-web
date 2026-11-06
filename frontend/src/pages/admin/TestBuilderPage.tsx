@@ -1,3 +1,4 @@
+import VisualCode from "../../components/VisualCode";
 import { useCallback, useEffect, useMemo, useState, type ChangeEvent, type FormEvent } from "react";
 import { Link, useParams } from "react-router-dom";
 import { fnJson, getToken, supabase } from "../../lib/supabase";
@@ -26,6 +27,8 @@ interface Question {
   explanation?: string | null;
   stimulus_image_path?: string | null;
   stimulus_image_url?: string | null;
+  visual_code?: string | null;
+  visual_format?: "svg" | "html" | null;
   status: string;
   choices: Choice[];
   passage?: { id: string; title: string | null; content: string } | null;
@@ -533,11 +536,12 @@ function EditQuestionModal({
           <textarea className="textarea" rows={3} value={explanation} onChange={(event) => setExplanation(event.target.value)} />
         </div>
         <div>
-          <label className="field-label">Question image</label>
+          <label className="field-label">Question visual</label>
+          <VisualCode code={question.visual_code} format={question.visual_format} />
           {(previewUrl || (!removeImage && question.stimulus_image_url)) && (
             <img src={previewUrl ?? question.stimulus_image_url!} alt="Question stimulus preview" style={{ display: "block", maxWidth: "100%", maxHeight: 260, objectFit: "contain", borderRadius: 8, border: "1px solid var(--border)", marginBottom: 8 }} />
           )}
-          <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
+          {!question.visual_code && <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
             <label className="btn btn-outline btn-sm" style={{ cursor: "pointer" }}>
               {imageFile ? "Replace image" : question.stimulus_image_path && !removeImage ? "Change image" : "Add image"}
               <input type="file" accept="image/png,image/jpeg,image/webp" onChange={handleImage} style={{ display: "none" }} />
@@ -546,7 +550,7 @@ function EditQuestionModal({
               <Button type="button" size="sm" variant="ghost" onClick={() => { setImageFile(null); setRemoveImage(true); }}>Remove image</Button>
             )}
             {removeImage && <Button type="button" size="sm" variant="ghost" onClick={() => setRemoveImage(false)}>Undo remove</Button>}
-          </div>
+          </div>}
           <p className="muted" style={{ fontSize: 12, margin: "6px 0 0" }}>PNG, JPEG, or WebP up to 10 MB.</p>
         </div>
         {error && <div className="login-error">{error}</div>}

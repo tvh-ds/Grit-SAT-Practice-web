@@ -4,7 +4,7 @@ export type HighlightRect = { x: number; y: number; width: number; height: numbe
 export type BoardComment = { id: string; highlights: HighlightRect[]; x: number; y: number; text: string; color?: string; width?: number; height?: number };
 export function commentSize(c: BoardComment) { return { width: c.width ?? 260, height: c.height ?? 180 }; }
 export function commentConnector(c: BoardComment) {
-  const r = c.highlights[c.highlights.length - 1], size = commentSize(c);
+  const r = c.highlights[c.highlights.length - 1] ?? { x: c.x, y: c.y, width: 0, height: 0 }, size = commentSize(c);
   const x = r.x + r.width / 2, y = r.y + r.height + 8;
   const bx = Math.max(c.x, Math.min(c.x + size.width, x)), by = y < c.y ? c.y : c.y + size.height;
   return { x, y, path: `M${bx},${by} C${bx},${by + (y < c.y ? -40 : 40)} ${x},${y + 40} ${x},${y}` };

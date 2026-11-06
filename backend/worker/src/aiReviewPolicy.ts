@@ -7,7 +7,7 @@ export type RiskSeverity = "major" | "minor";
 export interface ReviewRisk { code: string; severity: RiskSeverity; message: string }
 export interface RiskDraft {
   id: string; page_number: number | null; prompt: string; question_type: string | null; suggested_answer: string | null;
-  section?: string | null; source_question_number?: number | null; source_module_name?: string | null; source_module_position?: number | null; has_visual_stimulus?: boolean | null;
+  section?: string | null; source_question_number?: number | null; source_module_name?: string | null; source_module_position?: number | null; has_visual_stimulus?: boolean | null; visual_code?: string | null;
   stimulus_source_image_path?: string | null; stimulus_crop_status?: string | null;
   parser_metadata?: Record<string, unknown> | null; choices?: Array<{ text?: string | null }> | null;
 }
@@ -76,7 +76,7 @@ export function draftRisks(draft: RiskDraft): ReviewRisk[] {
   if (draft.question_type === "multiple_choice" && ((draft.choices ?? []).length !== 4 || (draft.choices ?? []).some((choice) => !choice.text?.trim()))) add("choice_structure", "minor", "Multiple-choice structure is incomplete or malformed.");
   if (metadata.source_number_origin === "inferred") add("question_number_inferred", "minor", "Question identity was inferred from document order.");
   if (metadata.key_match_confidence === "low" || ["recovered_question_id", "module_position", "document_position"].includes(String(metadata.key_match_method))) add("answer_alignment_low_confidence", "minor", "Answer alignment used a low-confidence method.");
-  if (draft.has_visual_stimulus) {
+  if (draft.has_visual_stimulus && !draft.visual_code) {
     if (!draft.stimulus_source_image_path) add("visual_source_missing", "major", "The visual source image is unavailable.");
     else if (draft.stimulus_crop_status !== "confirmed") add("crop_unconfirmed", "minor", "The visual crop requires AI and human review.");
   }

@@ -282,6 +282,8 @@ export const approveDraftSchema = z.object({
 });
 
 export const updateDraftSchema = z.object({
+  visual_code: z.string().max(250000).nullable().optional(),
+  visual_format: z.enum(["svg", "html"]).nullable().optional(),
   prompt: z.string().min(1).optional(),
   passage_text: z.string().max(20000).optional().nullable(),
   section: z.enum(["reading_writing", "math"]).optional().nullable(),

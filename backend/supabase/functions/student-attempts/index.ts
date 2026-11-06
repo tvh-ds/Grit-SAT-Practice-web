@@ -4,7 +4,7 @@ import { corsHeaders, json, error } from "../_shared/cors.ts";
 import { startAttemptSchema, advanceModuleSchema, pauseAttemptSchema } from "../_shared/validation.ts";
 
 const TEST_STRUCTURE_QUERY =
-  "id, title, description, status, is_public, kind, sections:test_sections(id, test_id, name, section_type, position, modules:test_modules(id, section_id, name, time_limit_minutes, position, is_adaptive, questions:test_module_questions(id, module_id, question_id, position, points, question:questions(id, section, question_type, passage_id, prompt, domain, skill, difficulty, stimulus_image_path, choices:question_choices(id, label, text, position), passage:passages(id, title, content)))))";
+  "id, title, description, status, is_public, kind, sections:test_sections(id, test_id, name, section_type, position, modules:test_modules(id, section_id, name, time_limit_minutes, position, is_adaptive, questions:test_module_questions(id, module_id, question_id, position, points, question:questions(id, section, question_type, passage_id, prompt, domain, skill, difficulty, stimulus_image_path, visual_code, visual_format, choices:question_choices(id, label, text, position), passage:passages(id, title, content)))))";
 const ASSIGNED_TEST_QUERY =
   `id, test_id, content_scope, module_ids, test:tests!test_assignments_test_id_fkey(${TEST_STRUCTURE_QUERY})`;
 

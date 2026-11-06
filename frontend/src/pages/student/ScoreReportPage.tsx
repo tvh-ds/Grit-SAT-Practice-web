@@ -1,3 +1,4 @@
+import VisualCode from "../../components/VisualCode";
 import { useEffect, useMemo, useState, type CSSProperties } from "react";
 import { useNavigate, useParams } from "react-router-dom";
 import { fnJson, getToken } from "../../lib/supabase";
@@ -255,7 +256,8 @@ function ReviewCard({ item }: { item: ReviewItem }) {
       </div>
 
       <PassageBlock passage={item.passage} compact />
-      {item.stimulus_image_url && (
+      <VisualCode code={item.visual_code} format={item.visual_format} />
+      {!item.visual_code && item.stimulus_image_url && (
         <img src={item.stimulus_image_url} alt="Question stimulus" style={{ maxWidth: "100%", maxHeight: 260, objectFit: "contain", borderRadius: 10, marginTop: 10 }} />
       )}
 

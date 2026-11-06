@@ -1,3 +1,4 @@
+import VisualCode from "../../components/VisualCode";
 import { useCallback, useEffect, useMemo, useState } from "react";
 import {
   AlertCircle,
@@ -272,7 +273,8 @@ function ErrorLogCard({ item, onSaved, readOnly }: { item: ErrorLogItem; onSaved
       {expanded && (
         <div className="error-log-question-detail">
           {item.passage && <PassageBlock passage={item.passage} compact />}
-          {item.stimulus_image_url && (
+          <VisualCode code={item.visual_code} format={item.visual_format} />
+          {!item.visual_code && item.stimulus_image_url && (
             <img className="error-log-stimulus" src={item.stimulus_image_url} alt="Question stimulus" />
           )}
           {item.question_type === "multiple_choice" ? (
