@@ -20,6 +20,7 @@ function cleanMarkup(input: string): string {
 export default function VisualCode({ code, format }: { code?: string | null; format?: string | null }) {
   if (!code || (format !== "svg" && format !== "html")) return null;
   const policy = "default-src 'none'; style-src 'unsafe-inline'; img-src 'none'; font-src 'none'; connect-src 'none'; form-action 'none'; base-uri 'none'";
-  const document = `<!doctype html><html><head><meta charset="utf-8"><meta http-equiv="Content-Security-Policy" content="${policy}"><style>html,body{margin:0;background:white}body{display:flex;justify-content:center;align-items:center;min-height:380px}svg{max-width:100%;max-height:440px;height:auto}table{max-width:100%}</style></head><body>${cleanMarkup(code)}</body></html>`;
-  return <iframe title="Question visual" sandbox="" referrerPolicy="no-referrer" srcDoc={document} style={{ display: "block", width: "100%", height: 460, maxWidth: 700, border: 0, pointerEvents: "none", background: "white" }} />;
+  const tableLayout = format === "html" ? "<style>html,body{overflow:auto!important}body{display:block!important;margin:0!important;padding:8px;box-sizing:border-box}table{margin-left:auto;margin-right:auto;max-width:100%}th,td{overflow-wrap:anywhere}</style>" : "";
+  const document = `<!doctype html><html><head><meta charset="utf-8"><meta http-equiv="Content-Security-Policy" content="${policy}"><style>html,body{margin:0;background:white}body{display:flex;justify-content:center;align-items:center;min-height:380px}svg{max-width:100%;max-height:440px;height:auto}table{max-width:100%}</style></head><body>${cleanMarkup(code)}${tableLayout}</body></html>`;
+  return <iframe title="Question visual" sandbox="" referrerPolicy="no-referrer" srcDoc={document} style={{ display: "block", width: "100%", height: 460, maxWidth: 700, border: 0, pointerEvents: format === "html" ? "auto" : "none", background: "white" }} />;
 }
