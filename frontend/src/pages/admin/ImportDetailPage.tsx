@@ -941,8 +941,9 @@ function DraftEditor({
   const [cropOpen, setCropOpen] = useState(false);
   const [sourceOpen, setSourceOpen] = useState(false);
   const [showFull, setShowFull] = useState(false);
-  const sourceAvailable = Boolean(draft.source_page_available || draft.stimulus_source_image_url || draft.review_source_image_url);
-  const sourcePage = useSourcePage(draft.pdf_import_id, draft.id, Boolean(draft.source_document_id && (cropOpen || sourceOpen || showFull)));
+  const convertedVisual = Boolean(draft.visual_code || draft.parser_metadata?.visual_conversion);
+  const sourceAvailable = !convertedVisual && Boolean(draft.source_page_available || draft.stimulus_source_image_url || draft.review_source_image_url);
+  const sourcePage = useSourcePage(draft.pdf_import_id, draft.id, Boolean(!convertedVisual && draft.source_document_id && (cropOpen || sourceOpen || showFull)));
   const sourcePageUrl = draft.source_document_id ? sourcePage.url : (draft.stimulus_source_image_url ?? draft.review_source_image_url);
 
   const [savedNote, setSavedNote] = useState<string | null>(null);

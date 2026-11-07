@@ -521,6 +521,7 @@ export interface DraftQuestion {
   choices: DraftChoice[];
   answer_keys: Array<{ id: string; detected_answer: string; confidence: number; status: string }>;
   parser_metadata?: {
+    visual_conversion?: { model: string; reasoning_effort: string; source_sha256: string; outcome: "code" | "no_visual"; converted_at: string };
     manual_entry?: boolean;
     source_number_origin?: "observed" | "inferred";
     parse_flags?: string[];
