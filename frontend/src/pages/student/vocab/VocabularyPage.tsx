@@ -15,6 +15,8 @@ export default function VocabularyPage() {
   const [description, setDescription] = useState("");
   const [color, setColor] = useState("#7f1d1d");
   const [error, setError] = useState<string | null>(null);
+  const [deletingId, setDeletingId] = useState<string | null>(null);
+  const [deleteError, setDeleteError] = useState<string | null>(null);
 
   const load = () => {
     void (async () => {
@@ -63,6 +65,32 @@ export default function VocabularyPage() {
       navigate(`/student/vocabulary/decks/${deck.id}`);
     } catch (e) {
       setError(e instanceof Error ? e.message : "Failed to create deck");
+    }
+  };
+
+  const deleteDeck = async (deck: VocabDeck) => {
+    if (deck.assigned !== false || deletingId) return;
+    if (!window.confirm(`Delete "${deck.name}"? Its cards and review history will be permanently deleted.`)) return;
+
+    setDeletingId(deck.id);
+    setDeleteError(null);
+    try {
+      const token = await getToken();
+      await fnJson<{ ok: boolean }>(`student-vocab/decks/${deck.id}`, { method: "DELETE", token });
+      setDash((current) => {
+        if (!current) return current;
+        const decks = current.decks.filter((item) => item.id !== deck.id);
+        const totals = decks.reduce((sum, item) => ({
+          cards: sum.cards + item.card_count,
+          due: sum.due + item.due_count,
+          fresh: sum.fresh + item.new_count,
+        }), { cards: 0, due: 0, fresh: 0 });
+        return { ...current, decks, totals };
+      });
+    } catch {
+      setDeleteError(`Could not delete "${deck.name}". Please try again.`);
+    } finally {
+      setDeletingId(null);
     }
   };
 
@@ -130,6 +158,7 @@ export default function VocabularyPage() {
         />
       )}
 
+      {deleteError && <p className="form-error" role="alert">{deleteError}</p>}
       <section className="deck-grid">
         {dash.decks.map((deck) => (
           <div className="card deck-card" key={deck.id}>
@@ -152,6 +181,11 @@ export default function VocabularyPage() {
               <Button variant="ghost" disabled={deck.card_count === 0} onClick={() => navigate(`/student/vocabulary/sprint?deck_id=${deck.id}`)}>
                 Sprint
               </Button>
+              {deck.assigned === false && (
+                <Button variant="danger" disabled={deletingId !== null} aria-label={`Delete deck ${deck.name}`} onClick={() => void deleteDeck(deck)}>
+                  {deletingId === deck.id ? "Deleting…" : "Delete"}
+                </Button>
+              )}
             </div>
           </div>
         ))}

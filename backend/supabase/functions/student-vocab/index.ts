@@ -168,11 +168,13 @@ Deno.serve(async (req) => {
       const deckRows = decksOut as unknown as DeckRow[];
       const ids = deckRows.map((d) => d.id);
 
-      const { data: cardRows, error: cErr } = await svc
-        .from("vocab_cards")
-        .select("id, deck_id, study_states:vocab_card_state(card_id, due_at)")
-        .in("deck_id", ids.length > 0 ? ids : [""])
-        .eq("study_states.student_id", ctx.user.id);
+      const { data: cardRows, error: cErr } = ids.length === 0
+        ? { data: [], error: null }
+        : await svc
+          .from("vocab_cards")
+          .select("id, deck_id, study_states:vocab_card_state(card_id, due_at)")
+          .in("deck_id", ids)
+          .eq("study_states.student_id", ctx.user.id);
       if (cErr) return error(cErr.message, 500);
       const cards = (cardRows ?? []) as unknown as Array<{
         id: string;
@@ -265,8 +267,15 @@ Deno.serve(async (req) => {
 
     if (req.method === "DELETE" && seg.length === 3 && seg[1] === "decks") {
       await getOwnDeck(svc, ctx.user.id, seg[2]);
-      const { error: err } = await svc.from("vocab_decks").delete().eq("id", seg[2]);
-      if (err) return error(err.message, 500);
+      const { error: err } = await svc.from("vocab_decks")
+        .delete()
+        .eq("id", seg[2])
+        .eq("student_id", ctx.user.id)
+        .eq("status", "active");
+      if (err) {
+        console.error("Failed to delete student vocabulary deck", err);
+        return error("Could not delete deck", 500);
+      }
       return json({ ok: true });
     }
 
