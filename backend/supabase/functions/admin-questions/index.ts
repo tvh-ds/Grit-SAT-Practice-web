@@ -79,7 +79,7 @@ Deno.serve(async (req) => {
         .from("questions")
         .select("*, choices:question_choices(*), passage:passages(*)");
       applyFilters(dataQ);
-      dataQ.order("created_at", { ascending: false });
+      dataQ.order("created_at", { ascending: false }).order("id", { ascending: true });
       dataQ.range(offset, offset + limit - 1);
 
       const [{ count, error: countErr }, { data, error: err }] = await Promise.all([countQ, dataQ]);
