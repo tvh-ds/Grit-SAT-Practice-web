@@ -14,6 +14,7 @@ import { dailyVocabulary, assignmentCounts } from "../../../../frontend/src/lib/
 import { adminReturnPath } from "../../../../frontend/src/lib/adminNavigation.ts";
 
 import { allProgressRows } from "./assignment_progress.ts";
+import { loadClassProgress } from "./class_progress.ts";
 
 const now = new Date("2026-10-22T12:00:00Z");
 const deck = { id: "deck", name: "Vocabulary", description: null, color: "blue" };
@@ -34,6 +35,57 @@ Deno.test("pages beyond the default database response cap without losing history
 Deno.test("fails rather than presenting a partial list as complete", async () => {
     await expect(allProgressRows(() => Promise.resolve({ data: null, error: { message: "database unavailable" } }))).rejects.toThrow("Unable to load student progress");
   });
+Deno.test("counts unique assigned bank questions within the class and assignment scope", async () => {
+  const assignment = { class_id: "class", test_id: "test", content_scope: "math", module_ids: [] };
+  const topic = { section: "math", domain: "Algebra", skill: "Linear equations in one variable", difficulty: 1 };
+  const tables: Record<string, Record<string, unknown>[]> = {
+    test_assignments: [
+      assignment, assignment,
+      { ...assignment, content_scope: "custom_modules", module_ids: ["assigned-reading"] },
+      { ...assignment, class_id: "other", content_scope: "full_test" },
+    ],
+    test_sections: [
+      { id: "math", test_id: "test", section_type: "math" },
+      { id: "reading", test_id: "test", section_type: "reading_writing" },
+    ],
+    test_modules: [
+      { id: "assigned-math", section_id: "math" },
+      { id: "assigned-reading", section_id: "reading" },
+      { id: "unassigned-reading", section_id: "reading" },
+    ],
+    test_module_questions: [
+      { module_id: "assigned-math", question_id: "shared" },
+      { module_id: "assigned-reading", question_id: "shared" },
+      { module_id: "assigned-math", question_id: "archived" },
+      { module_id: "assigned-reading", question_id: "rated-reading" },
+      { module_id: "unassigned-reading", question_id: "unassigned" },
+    ],
+    questions: [
+      { ...topic, id: "shared", status: "active" },
+      { ...topic, id: "unassigned", status: "active" },
+      { ...topic, id: "archived", status: "archived" },
+      { ...topic, id: "unrated", status: "active", difficulty: null },
+      { id: "rated-reading", status: "active", section: "reading_writing", domain: null, skill: null, difficulty: 5 },
+    ],
+  };
+  const db = {
+    from(table: string) {
+      let rows = tables[table];
+      return {
+        select() { return this; },
+        order() { return this; },
+        eq(column: string, value: unknown) { rows = rows.filter(row => row[column] === value); return this; },
+        in(column: string, values: unknown[]) { rows = rows.filter(row => values.includes(row[column])); return this; },
+        not(column: string, _operator: string, value: unknown) { rows = rows.filter(row => row[column] !== value); return this; },
+        range(start: number, end: number) { return Promise.resolve({ data: rows.slice(start, end + 1), error: null }); },
+      };
+    },
+  } as unknown as Parameters<typeof loadClassProgress>[0];
+  expect(await loadClassProgress(db, "class")).toEqual([
+    { ...topic, assigned: 1, total: 2 },
+    { section: "reading_writing", domain: null, skill: null, difficulty: 5, assigned: 1, total: 1 },
+  ]);
+});
 Deno.test("includes untouched new cards and cards due later today in remaining work", () => {
     const student = progress([
       { student_id: "student", card_id: "a", due_at: "2026-10-24T00:00:00Z", last_reviewed_at: "2026-10-22T10:00:00Z" },

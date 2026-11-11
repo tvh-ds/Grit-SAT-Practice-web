@@ -3,6 +3,7 @@ import { serviceClient } from "../_shared/supabase.ts";
 import { corsHeaders, json, error } from "../_shared/cors.ts";
 import { studentClassSchema } from "../_shared/validation.ts";
 import { allProgressRows, loadAssignmentProgress } from "../_shared/assignment_progress.ts";
+import { loadClassProgress } from "../_shared/class_progress.ts";
 
 Deno.serve(async (req) => {
   if (req.method === "OPTIONS") return new Response("ok", { headers: corsHeaders });
@@ -15,10 +16,12 @@ Deno.serve(async (req) => {
       const members = await allProgressRows<{ class_id: string; student_id: string }>(start => svc.from("student_class_members").select("class_id,student_id").order("class_id").order("student_id").range(start, start + 499));
       return json({ classes: classes.map(cls => ({ ...cls, student_ids: members.filter(m => m.class_id === cls.id).map(m => m.student_id) })).sort((a, b) => a.name.localeCompare(b.name)) });
     }
-    if (req.method === "GET" && seg.length === 2) {
+    const progressRequested = seg.length === 3 && seg[2] === "progress";
+    if (req.method === "GET" && (seg.length === 2 || progressRequested)) {
       const { data: cls, error: clsError } = await svc.from("student_classes").select("id,name").eq("id", id).maybeSingle();
       if (clsError) return error("Unable to load class", 500);
       if (!cls) return error("Class not found", 404);
+      if (progressRequested) return json({ skills: await loadClassProgress(svc, id) });
       const [practice, full, progress] = await Promise.all([
         allProgressRows<{ id: string; title: string; assigned_at: string; timer_minutes: number }>(start => svc.from("practice_assignment_batches").select("id,title,assigned_at,class_name,timer_minutes,snapshot_test_id").eq("class_id", id).order("id").range(start, start + 499)),
         allProgressRows<{ id: string; title: string; assigned_at: string }>(start => svc.from("full_test_assignment_batches").select("id,title,assigned_at,class_name,content_scope").eq("class_id", id).order("id").range(start, start + 499)),

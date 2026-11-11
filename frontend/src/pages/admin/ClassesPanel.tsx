@@ -5,18 +5,21 @@ import type { StudentClass } from "../../lib/types";
 import type { ProgressStudent, VocabReport } from "../../lib/adminProgress";
 import { Button, Modal, Spinner, fmtDate } from "../../components/ui";
 import AdminStudentProgressTable from "../../components/AdminStudentProgressTable";
+import ClassProgress from "./ClassProgress";
 const VocabularyAssignments = lazy(() => import("./VocabularyAssignments"));
 import "../../styles/admin-progress.css";
 
 type Student = ProgressStudent;
 type Assignment = { id: string; title: string; kind: "practice" | "full"; assigned_at: string; timer_minutes?: number; student_count: number; completed_count: number; avg_accuracy: number | null };
+const classTabs = { students: "Students", assignments: "Assignments", progress: "Progress", vocabulary: "Vocabulary" } as const;
 
 export default function ClassesPage() {
   const { classId } = useParams();
   const location = useLocation();
   const navigate = useNavigate();
   const [params, setParams] = useSearchParams();
-  const tab = params.get("tab") === "assignments" ? "assignments" : params.get("tab") === "vocabulary" ? "vocabulary" : "students";
+  const tabs = Object.keys(classTabs) as Array<keyof typeof classTabs>;
+  const tab = tabs.find(value => value === params.get("tab")) ?? "students";
   const [classes, setClasses] = useState<StudentClass[] | null>(null);
   const [students, setStudents] = useState<Student[] | null>(null);
   const [vocabulary, setVocabulary] = useState<VocabReport | null>(null);
@@ -77,7 +80,7 @@ export default function ClassesPage() {
       <Link to="/admin/classes" className="muted">← Classes</Link>
       <div className="admin-class-heading"><div><h1 className="page-title">{selected.name}</h1><p className="page-sub">Complete progress for every current class member.</p></div><Button variant="outline" onClick={() => setEditing(selected)} disabled={!students}>Edit class</Button></div>
       <div className="admin-class-summary"><span><strong>{selected.student_ids.length}</strong>Students</span><span><strong>{assignments?.length ?? "—"}</strong>Class assignments</span><span><strong>{assignments ? assignments.reduce((n, a) => n + a.completed_count, 0) : "—"}/{assignments ? assignments.reduce((n, a) => n + a.student_count, 0) : "—"}</strong>Student submissions completed</span><span><strong>{vocabulary ? vocabulary.decks.filter(d => d.students.some(s => selected.student_ids.includes(s.student_id))).length : "—"}</strong>Assigned vocabulary decks</span></div>
-      <nav className="admin-work-tabs" aria-label="Class progress">{(["students", "assignments", "vocabulary"] as const).map(value => <button key={value} type="button" className="btn btn-outline" aria-current={tab === value ? "page" : undefined} onClick={() => update("tab", value)}>{value === "students" ? "Students" : value === "assignments" ? "Assignments" : "Vocabulary"}</button>)}</nav>
+      <nav className="admin-work-tabs" aria-label="Class progress">{tabs.map(value => <button key={value} type="button" className="btn btn-outline" aria-current={tab === value ? "page" : undefined} onClick={() => update("tab", value)}>{classTabs[value]}</button>)}</nav>
       {tab === "students" && (students ? <AdminStudentProgressTable students={members} vocabulary={vocabulary} returnTo={returnTo} /> : !error && <Spinner />)}
       {tab === "assignments" && <>
         <p className="muted">All work assigned to this class, including completed assignments. Counts retain the original recipients when membership changes.</p>
@@ -86,6 +89,7 @@ export default function ClassesPage() {
         <div className="toolbar admin-progress-filters"><label>Find assignment<input className="input" type="search" placeholder="Assignment title" value={search} onChange={e => update("assignment_search", e.target.value)} /></label><label>Type<select className="select" value={assignmentKind} onChange={e => update("assignment_kind", e.target.value)}><option value="all">All types</option><option value="practice">Practice sets</option><option value="full">Full-length tests</option></select></label><label>Completion<select className="select" value={assignmentStatus} onChange={e => update("assignment_status", e.target.value)}><option value="all">All assignments</option><option value="completed">Everyone completed</option><option value="incomplete">Incomplete</option></select></label></div>
         {assignments && <div className="admin-progress-scroll"><table className="table"><thead><tr><th>Assignment</th><th>Type</th><th>Assigned</th><th>Completed / assigned</th><th>Average score</th><th /></tr></thead><tbody>{visibleAssignments.map(a => <tr key={`${a.kind}-${a.id}`}><td>{a.title}</td><td>{a.kind === "practice" ? "Practice set" : "Full-length test"}</td><td>{fmtDate(a.assigned_at)}</td><td>{a.completed_count}/{a.student_count}</td><td>{a.avg_accuracy == null ? "—" : `${a.avg_accuracy}%`}</td><td><Link className="btn btn-outline btn-sm" to={`/admin/assignments/${a.kind}/${a.id}?return_to=${encodeURIComponent(returnTo)}`}>View students</Link></td></tr>)}</tbody></table>{visibleAssignments.length === 0 && <p className="muted">No assignments match this view.</p>}</div>}
       </>}
+      {tab === "progress" && <ClassProgress key={selected.id} classId={selected.id} />}
       {tab === "vocabulary" && <Suspense fallback={<Spinner />}><VocabularyAssignments key={selected.id} classId={selected.id} returnTo={returnTo} /></Suspense>}
     </> : classes ? <p role="alert">Class not found. <Link to="/admin/classes">Return to classes</Link></p> : null}
     {error && <div className="login-error" role="alert">{error} Reload the page to retry.</div>}
