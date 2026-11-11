@@ -1,7 +1,7 @@
 import { requireRole, HttpError, pathSegments } from "../_shared/auth.ts";
 import { serviceClient } from "../_shared/supabase.ts";
 import { corsHeaders, json, error } from "../_shared/cors.ts";
-import { studentClassSchema } from "../_shared/validation.ts";
+import { classProgressAssignmentSchema, studentClassSchema } from "../_shared/validation.ts";
 import { allProgressRows, loadAssignmentProgress } from "../_shared/assignment_progress.ts";
 import { loadClassProgress } from "../_shared/class_progress.ts";
 
@@ -17,6 +17,31 @@ Deno.serve(async (req) => {
       return json({ classes: classes.map(cls => ({ ...cls, student_ids: members.filter(m => m.class_id === cls.id).map(m => m.student_id) })).sort((a, b) => a.name.localeCompare(b.name)) });
     }
     const progressRequested = seg.length === 3 && seg[2] === "progress";
+    if (req.method === "POST" && progressRequested) {
+      const parsed = classProgressAssignmentSchema.safeParse(await req.json());
+      if (!parsed.success) return error("Check the skill, question count, timer, and name.", 422);
+      const body = parsed.data;
+      const { data, error: assignmentError } = await svc.rpc("assign_class_progress_questions", {
+        p_class_id: id,
+        p_admin_id: ctx.user.id,
+        p_section: body.section,
+        p_domain: body.domain,
+        p_skill: body.skill,
+        p_difficulty: body.difficulty,
+        p_count: body.count,
+        p_timer_minutes: body.timer_minutes,
+        p_plan: body.plan ?? null,
+        p_title: body.title ?? null,
+      });
+      if (assignmentError) {
+        if (/^PT(?:403|404|409|422)$/.test(assignmentError.code)) {
+          return error(assignmentError.message, Number(assignmentError.code.slice(2)));
+        }
+        console.error("assign_class_progress_questions", assignmentError);
+        return error("Unable to prepare or save this assignment.", 500);
+      }
+      return json(data, body.plan ? 201 : 200);
+    }
     if (req.method === "GET" && (seg.length === 2 || progressRequested)) {
       const { data: cls, error: clsError } = await svc.from("student_classes").select("id,name").eq("id", id).maybeSingle();
       if (clsError) return error("Unable to load class", 500);

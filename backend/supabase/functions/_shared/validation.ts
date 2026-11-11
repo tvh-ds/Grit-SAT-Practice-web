@@ -360,6 +360,17 @@ export const studentClassSchema = z.object({
   student_ids: z.array(z.string().uuid()).max(1000),
 });
 
+export const classProgressAssignmentSchema = z.object({
+  section: z.enum(["math", "reading_writing"]),
+  domain: z.string().trim().min(1),
+  skill: z.string().trim().min(1),
+  difficulty: z.enum(["easy", "medium", "hard"]),
+  count: z.number().int().min(1).max(100),
+  timer_minutes: z.number().int().min(1).max(600),
+  plan: z.string().regex(/^[0-9a-f]{32}$/).optional(),
+  title: z.string().trim().max(300).optional(),
+});
+
 export const practiceQuestionEditSchema = z.object({
   position: z.number().int().min(1).optional(),
   prompt: z.string().min(1).optional(),

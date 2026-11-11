@@ -39,6 +39,23 @@
 .class-progress-difficulty progress::-webkit-progress-value { background: var(--accent); border-radius: 4px; }
 .class-progress-difficulty progress::-moz-progress-bar { background: var(--accent); border-radius: 4px; }
 .class-progress-count { color: var(--text-muted); }
+.class-progress-difficulty { grid-row: 1; align-content: start; }
+.class-progress-count { align-items: center; min-height: 28px; }
+.class-progress-assign-trigger.btn { min-height: 28px; padding: 3px 8px; font-size: 12px; }
+.class-progress-assign-form { grid-column: 1 / -1; padding: 14px; border: 1px solid var(--border-accent); border-radius: 8px; background: var(--bg-base); }
+.class-progress-assign-fields { display: grid; grid-template-columns: minmax(92px, 1fr) minmax(110px, 1fr) minmax(0, 3fr); gap: 10px; }
+.class-progress-assign-fields label { display: grid; gap: 5px; font-size: 13px; }
+.class-progress-assign-fields input { min-width: 0; }
+.class-progress-assign-footer { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 10px; margin-top: 12px; }
+.class-progress-assign-message { color: var(--text-muted); font-size: 13px; }
+.class-progress-assign-message p { margin: 0; }
+.class-progress-assign-message [role="alert"] { color: var(--error); }
+.class-progress-assign-actions { display: flex; flex-wrap: wrap; gap: 6px; margin-left: auto; }
+.class-progress-assigned { margin: 10px 0 0; padding: 10px 12px; border-left: 2px solid var(--accent); background: var(--accent-subtle); font-size: 13px; }
+@media (hover: hover) and (pointer: fine) {
+  .class-progress-assign-trigger:not([aria-expanded="true"]) { opacity: 0; pointer-events: none; }
+  .class-progress-difficulty:is(:hover, :focus-within) .class-progress-assign-trigger { opacity: 1; pointer-events: auto; }
+}
 .admin-vocab-details { margin: 22px 0; border-top: 1px solid var(--border-subtle); padding-top: 16px; }
 .admin-vocab-details summary { cursor: pointer; font-weight: 600; }
 .admin-vocab-details[open] > summary { margin-bottom: 20px; }
@@ -53,4 +70,7 @@
 @media (max-width: 520px) {
   .class-progress-skills { margin-left: 12px; }
   .class-progress-difficulties { grid-template-columns: minmax(0, 1fr); }
+  .class-progress-difficulty { grid-row: auto; }
+  .class-progress-assign-fields { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  .class-progress-assign-name { grid-column: 1 / -1; }
 }

@@ -1,8 +1,9 @@
-import { useEffect, useState } from "react";
+import { Fragment, useEffect, useRef, useState } from "react";
 import { ChevronRight } from "lucide-react";
 import { Button, Spinner } from "../../components/ui";
 import { DIFFICULTIES, difficultyLabel, domainsForSection, sectionLabel, skillsForDomain, type SectionKey } from "../../lib/satTaxonomy";
 import { fnJson, getToken } from "../../lib/supabase";
+import ClassProgressAssignment, { type ProgressAssignmentTarget } from "./ClassProgressAssignment";
 
 type SkillProgress = {
   section: SectionKey;
@@ -34,10 +35,18 @@ function sectionProgress(section: SectionKey, rows: SkillProgress[]) {
   return domains;
 }
 
-export default function ClassProgress({ classId }: { classId: string }) {
+export default function ClassProgress({ classId, onAssigned }: { classId: string; onAssigned: () => void }) {
   const [rows, setRows] = useState<SkillProgress[] | null>(null);
   const [error, setError] = useState(false);
   const [retry, setRetry] = useState(0);
+  const [target, setTarget] = useState<ProgressAssignmentTarget | null>(null);
+  const [confirmation, setConfirmation] = useState<{ target: ProgressAssignmentTarget; message: string } | null>(null);
+  const assignButton = useRef<HTMLButtonElement | null>(null);
+
+  function closeAssignment() {
+    setTarget(null);
+    assignButton.current?.focus();
+  }
 
   useEffect(() => {
     let active = true;
@@ -70,18 +79,49 @@ export default function ClassProgress({ classId }: { classId: string }) {
                     .reduce((sum, row) => ({ assigned: sum.assigned + row.assigned, total: sum.total + row.total }), { assigned: 0, total: 0 });
                   const coverage = totals.total ? 100 * totals.assigned / totals.total : 0;
                   const percentage = coverage > 0 && coverage < 1 ? "<1%" : coverage > 99 && coverage < 100 ? ">99%" : `${Math.round(coverage)}%`;
-                  return <div className="class-progress-difficulty" key={difficulty}>
-                    <div><span>{difficultyNames[difficulty]}</span><strong>{percentage}</strong></div>
-                    <progress
-                      aria-label={`${skill}, ${difficultyNames[difficulty]}`}
-                      aria-valuetext={`${formatCount.format(totals.assigned)} assigned out of ${formatCount.format(totals.total)} in the bank`}
-                      max={100}
-                      value={coverage}
-                    />
-                    <span className="class-progress-count">{formatCount.format(totals.assigned)} of {formatCount.format(totals.total)} assigned</span>
-                  </div>;
+                  const open = target?.section === section && target.domain === domain && target.skill === skill && target.difficulty === difficulty;
+                  return <Fragment key={difficulty}>
+                    <div className="class-progress-difficulty">
+                      <div><span>{difficultyNames[difficulty]}</span><strong>{percentage}</strong></div>
+                      <progress
+                        aria-label={`${skill}, ${difficultyNames[difficulty]}`}
+                        aria-valuetext={`${formatCount.format(totals.assigned)} assigned out of ${formatCount.format(totals.total)} in the bank`}
+                        max={100}
+                        value={coverage}
+                      />
+                      <div className="class-progress-count">
+                        <span>{formatCount.format(totals.assigned)} of {formatCount.format(totals.total)} assigned</span>
+                        {totals.assigned < totals.total && (!target || open) && <Button
+                          type="button"
+                          variant="outline"
+                          size="sm"
+                          className="class-progress-assign-trigger"
+                          aria-label={`Assign ${difficultyNames[difficulty]} questions for ${skill}`}
+                          aria-expanded={open}
+                          aria-controls={open ? "class-progress-assignment" : undefined}
+                          onClick={event => {
+                            if (open) return;
+                            assignButton.current = event.currentTarget;
+                            setConfirmation(null);
+                            setTarget({ section, domain, skill, difficulty });
+                          }}
+                        >Assign</Button>}
+                      </div>
+                    </div>
+                    {open && <ClassProgressAssignment classId={classId} target={target} onClose={closeAssignment} onAssigned={assignment => {
+                      closeAssignment();
+                      setConfirmation({
+                        target,
+                        message: `Assigned ${assignment.title} to ${assignment.recipient_count} ${assignment.recipient_count === 1 ? "student" : "students"}.`,
+                      });
+                      setRetry(value => value + 1);
+                      onAssigned();
+                    }} />}
+                  </Fragment>;
                 })}
               </div>
+              {confirmation?.target.section === section && confirmation.target.domain === domain && confirmation.target.skill === skill &&
+                <p className="class-progress-assigned" role="status">{confirmation.message}</p>}
             </li>)}
           </ul>
         </details>)}

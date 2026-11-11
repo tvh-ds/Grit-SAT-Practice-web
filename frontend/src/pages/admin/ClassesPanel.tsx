@@ -25,6 +25,7 @@ export default function ClassesPage() {
   const [vocabulary, setVocabulary] = useState<VocabReport | null>(null);
   const [editing, setEditing] = useState<StudentClass | "new" | null>(null);
   const [assignments, setAssignments] = useState<Assignment[] | null>(null);
+  const [assignmentRevision, setAssignmentRevision] = useState(0);
   const [error, setError] = useState("");
   const [historyError, setHistoryError] = useState("");
   const search = params.get("assignment_search") ?? "";
@@ -67,7 +68,7 @@ export default function ClassesPage() {
       .then(data => { if (live) setAssignments(data.assignments); })
       .catch(e => { if (live) setHistoryError(e instanceof Error ? e.message : "Unable to load assignments"); });
     return () => { live = false; };
-  }, [classId]);
+  }, [classId, assignmentRevision]);
   const selected = classes?.find(cls => cls.id === classId);
   const members = (students ?? []).filter(student => selected?.student_ids.includes(student.id));
   const returnTo = location.pathname + location.search;
@@ -89,7 +90,7 @@ export default function ClassesPage() {
         <div className="toolbar admin-progress-filters"><label>Find assignment<input className="input" type="search" placeholder="Assignment title" value={search} onChange={e => update("assignment_search", e.target.value)} /></label><label>Type<select className="select" value={assignmentKind} onChange={e => update("assignment_kind", e.target.value)}><option value="all">All types</option><option value="practice">Practice sets</option><option value="full">Full-length tests</option></select></label><label>Completion<select className="select" value={assignmentStatus} onChange={e => update("assignment_status", e.target.value)}><option value="all">All assignments</option><option value="completed">Everyone completed</option><option value="incomplete">Incomplete</option></select></label></div>
         {assignments && <div className="admin-progress-scroll"><table className="table"><thead><tr><th>Assignment</th><th>Type</th><th>Assigned</th><th>Completed / assigned</th><th>Average score</th><th /></tr></thead><tbody>{visibleAssignments.map(a => <tr key={`${a.kind}-${a.id}`}><td>{a.title}</td><td>{a.kind === "practice" ? "Practice set" : "Full-length test"}</td><td>{fmtDate(a.assigned_at)}</td><td>{a.completed_count}/{a.student_count}</td><td>{a.avg_accuracy == null ? "—" : `${a.avg_accuracy}%`}</td><td><Link className="btn btn-outline btn-sm" to={`/admin/assignments/${a.kind}/${a.id}?return_to=${encodeURIComponent(returnTo)}`}>View students</Link></td></tr>)}</tbody></table>{visibleAssignments.length === 0 && <p className="muted">No assignments match this view.</p>}</div>}
       </>}
-      {tab === "progress" && <ClassProgress key={selected.id} classId={selected.id} />}
+      {tab === "progress" && <ClassProgress key={selected.id} classId={selected.id} onAssigned={() => setAssignmentRevision(value => value + 1)} />}
       {tab === "vocabulary" && <Suspense fallback={<Spinner />}><VocabularyAssignments key={selected.id} classId={selected.id} returnTo={returnTo} /></Suspense>}
     </> : classes ? <p role="alert">Class not found. <Link to="/admin/classes">Return to classes</Link></p> : null}
     {error && <div className="login-error" role="alert">{error} Reload the page to retry.</div>}
