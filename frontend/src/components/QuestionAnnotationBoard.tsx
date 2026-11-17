@@ -5,17 +5,9 @@ import { createPortal } from "react-dom";
 import { PenLine, Highlighter, Eraser, Hand, MessageSquarePlus, Undo2, Redo2, Trash2, Plus, Minus, Maximize, Palette, X, StickyNote, SunMoon, Move, ChevronDown, EyeOff, Scaling } from "lucide-react";
 import { Button } from "./ui";
 import MathText from "./MathText";
-import type { ReviewPassage } from "../lib/types";
 import { emptyAnnotation, strokePath, touchesStroke, commentSize, commentConnector } from "../lib/reviewAnnotations";
-import type { BoardPoint, BoardStroke, BoardComment, ReviewAnnotation } from "../lib/reviewAnnotations";
+import type { AnnotationQuestion, BoardPoint, BoardStroke, BoardComment, ReviewAnnotation } from "../lib/reviewAnnotations";
 import "../styles/review-annotations.css";
-
-export type AnnotationQuestion = {
-  question_id: string; question_number: number; prompt: string | null;
-  passage?: ReviewPassage | null; stimulus_image_url?: string | null; visual_code?: string | null; visual_format?: "svg" | "html" | null;
-  choices: { id: string; label: string; text: string; is_correct: boolean }[];
-  correct_answer: string | null; your_answer?: string | null;
-};
 
 export function BoardQuestion({ question }: { question: AnnotationQuestion }) {
   const [imageError, setImageError] = useState(false);

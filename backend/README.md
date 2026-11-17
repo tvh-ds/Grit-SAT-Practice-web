@@ -338,7 +338,11 @@ button to hide them again. Hiding does not delete content or exclude it from exp
 below the highlighted words. The corner handle supports pointer/keyboard resizing; dimensions persist.
 
 Save annotation explicitly persists editable vector marks and notes in `admin_review_annotations`.
-RLS permits only the owning administrator; students and anonymous users have no access.
+RLS permits direct board access only to the owning administrator. Use **Share review** beside a
+saved annotation to make it available in the intended student's score report. Sharing from the
+practice assignment's All Questions tab makes that review available to its students after grading.
+Students can view shared boards, download them as an offline HTML file, or use the viewer's
+**Print / Save as PDF** action. **Unshare review** removes it from the score report.
 Boards are scoped to the assignment or individual reviewed attempt. Changed question/answer content
 invalidates old boards for that scope instead of placing marks over changed text.
 
@@ -350,6 +354,7 @@ are excluded. Long boards may occupy several PDF pages. No external export servi
 Migrations: `20261004000000_admin_review_annotations.sql` and
 `20261004010000_review_highlight_comments.sql` (bounded, optional comments; legacy boards remain valid).
 `20261004020000_review_comment_sizes.sql` validates optional resize dimensions within the board.
+`20261117175821_share_review_annotations.sql` adds sharing and supports boards from Student Detail.
 Staging reference must be
 `wgkggknyndgaoyazdhdf` before applying it. Storage and the image-enabled assignment endpoint
 were verified on staging; production requires its own deployment request.

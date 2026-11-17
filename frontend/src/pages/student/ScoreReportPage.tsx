@@ -6,6 +6,7 @@ import type { ReviewItem, ScoreDetail } from "../../lib/types";
 import { Button, EmptyState, Pill, Spinner, fmtDate } from "../../components/ui";
 import MathText from "../../components/MathText";
 import PassageBlock from "../../components/PassageBlock";
+import StudentAnnotatedReviews from "../../components/StudentAnnotatedReviews";
 
 type Tab = "all" | "wrong" | "unanswered";
 
@@ -21,14 +22,18 @@ export default function ScoreReportPage() {
 
   useEffect(() => {
     if (!attemptId) return;
+    let active = true;
+    setError(null);
     void (async () => {
       try {
         const token = await getToken();
-        setData(await fnJson<ScoreDetail>(`student-scores/${attemptId}`, { token }));
+        const report = await fnJson<ScoreDetail>(`student-scores/${attemptId}`, { token });
+        if (active) setData(report);
       } catch (err) {
-        setError(err instanceof Error ? err.message : "Failed to load score");
+        if (active) setError(err instanceof Error ? err.message : "Failed to load score");
       }
     })();
+    return () => { active = false; };
   }, [attemptId]);
 
   const review = data?.review ?? [];
@@ -80,7 +85,7 @@ export default function ScoreReportPage() {
       </div>
     );
   }
-  if (!data) return <Spinner />;
+  if (!data || data.attempt.id !== attemptId) return <Spinner />;
 
   const totalQ = review.length;
   const correct = review.filter((r) => r.is_correct === true).length;
@@ -181,6 +186,7 @@ export default function ScoreReportPage() {
         <div className="section-label">Review</div>
         <div className="section-head" style={{ flexWrap: "wrap" }}>
           <h2>Answer Review</h2>
+          <StudentAnnotatedReviews key={data.attempt.id} attemptId={data.attempt.id} questions={data.review} title={data.attempt.test?.title ?? "Score report"} />
         </div>
 
         {data.explanations_released === false && (

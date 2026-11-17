@@ -1,3 +1,18 @@
+import type { ReviewChoice, ReviewPassage } from "./types";
+
+export type AnnotationQuestion = {
+  question_id: string;
+  question_number: number;
+  prompt: string | null;
+  passage?: ReviewPassage | null;
+  stimulus_image_url?: string | null;
+  visual_code?: string | null;
+  visual_format?: "svg" | "html" | null;
+  choices: ReviewChoice[];
+  correct_answer: string | null;
+  your_answer?: string | null;
+};
+
 export type BoardPoint = [number, number];
 export type BoardStroke = { points: BoardPoint[]; color: string; width: number; opacity: number };
 export type HighlightRect = { x: number; y: number; width: number; height: number };
@@ -14,6 +29,28 @@ export type ReviewAnnotation = {
   comments?: BoardComment[];
   spacious?: boolean;
 };
+
+export type ReviewAnnotationRow = {
+  question_id: string;
+  document: ReviewAnnotation;
+  content_hash: string;
+  shared_at: string | null;
+};
+
+export async function annotationFingerprint(question: AnnotationQuestion, legacy = false) {
+  // Signed image tokens expire and batch choice statistics can change on each submission.
+  const content = {
+    prompt: question.prompt,
+    passage: question.passage?.content,
+    choices: legacy ? question.choices : question.choices.map(({ id, label, text, is_correct }) => ({ id, label, text, is_correct })),
+    correct_answer: question.correct_answer,
+    your_answer: question.your_answer,
+    image_path: question.stimulus_image_url?.split("?")[0],
+    ...(legacy ? {} : { passage_title: question.passage?.title, visual_code: question.visual_code, visual_format: question.visual_format }),
+  };
+  const hash = await crypto.subtle.digest("SHA-256", new TextEncoder().encode(JSON.stringify(content)));
+  return [...new Uint8Array(hash)].map(byte => byte.toString(16).padStart(2, "0")).join("");
+}
 
 export function emptyAnnotation(): ReviewAnnotation {
   return { version: 1, theme: "white", strokes: [], notes: "", height: 1000, spacious: true };

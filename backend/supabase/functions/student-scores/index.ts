@@ -5,6 +5,7 @@ import { requireApprovedStudent } from "../_shared/auth.ts";
 import { errorLogReviewSaveSchema } from "../_shared/validation.ts";
 import { loadErrorLogPage } from "../_shared/error_log.ts";
 import { explanationsAvailable } from "../_shared/explanationRelease.ts";
+import { loadSharedReviewAnnotations } from "../_shared/sharedReviewAnnotations.ts";
 
 interface ReviewChoice { id: string; label: string; text: string; is_correct: boolean; position: number }
 interface ReviewQuestion {
@@ -37,6 +38,10 @@ Deno.serve(async (req) => {
     const ctx = await requireApprovedStudent(req);
     const svc = serviceClient();
     const seg = pathSegments(req);
+
+    if (req.method === "GET" && seg.length === 3 && seg[2] === "annotations") {
+      return json({ annotations: await loadSharedReviewAnnotations(svc, ctx.user.id, seg[1]) });
+    }
 
     if (req.method === "GET" && seg.length === 2 && seg[1] === "error-log") {
       return json(await loadErrorLogPage(svc, ctx.user.id, new URL(req.url)));

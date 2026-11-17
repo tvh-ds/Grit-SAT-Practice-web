@@ -58,13 +58,22 @@
 .annotation-note-label textarea { display: block; width: 100%; min-height: 60px; margin-top: 5px; padding: 8px; border: 1px solid var(--border-medium); border-radius: 6px; color: var(--text-primary); background: var(--bg-input,var(--bg-surface)); resize: vertical; }
 .annotation-export { position: fixed; inset: 0; z-index: 2100; background: #e9edf1; color: #16202c; overflow: auto; padding: 24px; }
 .annotation-export-toolbar { position: sticky; top: 0; background: #fff; display: flex; justify-content: space-between; align-items: center; gap: 12px; padding: 16px; margin-bottom: 20px; z-index: 1; }
+.annotation-export-actions { display: flex; flex-wrap: wrap; gap: 8px; }
+.annotation-student-view { overscroll-behavior: contain; }
+.annotation-student-view .annotation-export-toolbar { left: 0; z-index: 3; flex-wrap: wrap; }
+.annotation-student-view .annotation-export-toolbar .btn-outline { color: #22364a; border-color: #bdcbd7; }
+.annotation-student-view .annotation-export-toolbar .btn-outline:hover:not(:disabled) { background: #e9edf1; }
+.annotation-student-view .annotation-export-pages { min-width: 960px; }
 .annotation-export-page { margin: 0 auto 24px; width: 960px; }
+.annotation-export-page:first-child { margin-top: 0; }
 .annotation-export-page h2 { font-size: 18px; padding: 12px 0; margin: 0; }
+@media (max-width: 640px) { .annotation-student-view { padding: 12px; } }
 @media (max-width: 640px) { .annotation-backdrop { padding: 0; } .annotation-dialog { height: 100dvh; border-radius: 0; } .annotation-dialog header,.annotation-toolbar,.annotation-dialog footer { padding: 12px; } .annotation-workspace { padding: 12px; } .annotation-dialog footer { flex-wrap: wrap; } .annotation-note-label { min-width: 100%; } }
 @media print {
   body.annotation-export-active > :not(.annotation-export) { display: none !important; }
   .annotation-export { position: static; padding: 0; overflow: visible; background: white; }
   .annotation-export-toolbar { display: none; }
+  .annotation-export .annotation-export-pages { min-width: 0; zoom: 1 !important; }
   .annotation-export-page { width: 100%; break-after: page; margin: 0; }
   .annotation-export-page:last-child { break-after: auto; }
   .annotation-export .annotation-sheet { width: 960px; zoom: .68; print-color-adjust: exact; -webkit-print-color-adjust: exact; }
