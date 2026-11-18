@@ -91,7 +91,7 @@ function normalizeEscapedBlanksDisplay(text: string): string {
  * note-taking passages ("* Atoms …") keep their bullets. Math is already
  * split out before this runs, so LaTeX is unaffected.
  */
-function renderRichTextChunk(chunk: string, keyPrefix: string): ReactNode[] {
+function renderPlainRichTextChunk(chunk: string, keyPrefix: string): ReactNode[] {
   const out: ReactNode[] = [];
   const lines = chunk.split("\n");
   lines.forEach((line, li) => {
@@ -104,6 +104,16 @@ function renderRichTextChunk(chunk: string, keyPrefix: string): ReactNode[] {
     });
   });
   return out;
+}
+
+/** Only exact underline markers are interpreted. All other markup remains text. */
+function renderRichTextChunk(chunk: string, keyPrefix: string): ReactNode[] {
+  return chunk.split(/<u>([\s\S]*?)<\/u>/g).map((part, index) => {
+    const children = renderPlainRichTextChunk(part, `${keyPrefix}-${index}`);
+    return index % 2 === 1
+      ? <span key={`${keyPrefix}-u-${index}`} style={{ textDecoration: "underline" }}>{children}</span>
+      : <span key={`${keyPrefix}-plain-${index}`}>{children}</span>;
+  });
 }
 
 /**
