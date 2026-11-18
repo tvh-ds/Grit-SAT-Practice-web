@@ -363,7 +363,7 @@ export const studentClassSchema = z.object({
 export const classProgressAssignmentSchema = z.object({
   section: z.enum(["math", "reading_writing"]),
   domain: z.string().trim().min(1),
-  skill: z.string().trim().min(1),
+  skill: z.string().trim().min(1).nullable(),
   difficulty: z.enum(["easy", "medium", "hard"]),
   count: z.number().int().min(1).max(100),
   timer_minutes: z.number().int().min(1).max(600),

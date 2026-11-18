@@ -6,7 +6,7 @@ import { fnJson, getToken } from "../../lib/supabase";
 export type ProgressAssignmentTarget = {
   section: SectionKey;
   domain: string;
-  skill: string;
+  skill: string | null;
   difficulty: DifficultyLabel;
 };
 
@@ -81,7 +81,7 @@ export default function ClassProgressAssignment({ classId, target, onClose, onAs
     }
   }
 
-  return <form className="class-progress-assign-form" id="class-progress-assignment" aria-label={`Assign ${target.difficulty} questions for ${target.skill}`}
+  return <form className="class-progress-assign-form" id="class-progress-assignment" aria-label={`Assign ${target.difficulty} questions for ${target.skill ?? target.domain}`}
     onSubmit={event => void assign(event)}
     onKeyDown={event => {
       if (event.key === "Escape" && !saving) { event.stopPropagation(); onClose(); }

@@ -27,7 +27,8 @@
 .class-progress-domains { padding: 0 16px 8px; }
 .class-progress-domain { border-top: 1px solid var(--border-subtle); }
 .class-progress-domain > summary { padding-inline: 4px; font-weight: 600; font-size: 14px; }
-.class-progress-skills { margin: 0 0 12px 24px; padding: 0; list-style: none; }
+.class-progress-skills, .class-progress-domain-overview { margin: 0 0 12px 24px; }
+.class-progress-skills { padding: 0; list-style: none; }
 .class-progress-skill { padding: 13px 0; border-top: 1px solid var(--border-subtle); }
 .class-progress-skill h3 { margin: 0 0 9px; font-size: 14px; font-weight: 600; }
 .class-progress-difficulties { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 12px 20px; }
@@ -41,6 +42,7 @@
 .class-progress-count { color: var(--text-muted); }
 .class-progress-difficulty { grid-row: 1; align-content: start; }
 .class-progress-count { align-items: center; min-height: 28px; }
+.class-progress-domain-overview .class-progress-count { flex-wrap: wrap; }
 .class-progress-assign-trigger.btn { min-height: 28px; padding: 3px 8px; font-size: 12px; }
 .class-progress-assign-form { grid-column: 1 / -1; padding: 14px; border: 1px solid var(--border-accent); border-radius: 8px; background: var(--bg-base); }
 .class-progress-assign-fields { display: grid; grid-template-columns: minmax(92px, 1fr) minmax(110px, 1fr) minmax(0, 3fr); gap: 10px; }
@@ -53,8 +55,8 @@
 .class-progress-assign-actions { display: flex; flex-wrap: wrap; gap: 6px; margin-left: auto; }
 .class-progress-assigned { margin: 10px 0 0; padding: 10px 12px; border-left: 2px solid var(--accent); background: var(--accent-subtle); font-size: 13px; }
 @media (hover: hover) and (pointer: fine) {
-  .class-progress-assign-trigger:not([aria-expanded="true"]) { opacity: 0; pointer-events: none; }
-  .class-progress-difficulty:is(:hover, :focus-within) .class-progress-assign-trigger { opacity: 1; pointer-events: auto; }
+  .class-progress-skills .class-progress-assign-trigger:not([aria-expanded="true"]) { opacity: 0; pointer-events: none; }
+  .class-progress-skills .class-progress-difficulty:is(:hover, :focus-within) .class-progress-assign-trigger:not([aria-expanded="true"]) { opacity: 1; pointer-events: auto; }
 }
 .admin-vocab-details { margin: 22px 0; border-top: 1px solid var(--border-subtle); padding-top: 16px; }
 .admin-vocab-details summary { cursor: pointer; font-weight: 600; }
@@ -68,7 +70,7 @@
   .admin-class-summary { gap: 12px 20px; }
 }
 @media (max-width: 520px) {
-  .class-progress-skills { margin-left: 12px; }
+  .class-progress-skills, .class-progress-domain-overview { margin-left: 12px; }
   .class-progress-difficulties { grid-template-columns: minmax(0, 1fr); }
   .class-progress-difficulty { grid-row: auto; }
   .class-progress-assign-fields { grid-template-columns: repeat(2, minmax(0, 1fr)); }

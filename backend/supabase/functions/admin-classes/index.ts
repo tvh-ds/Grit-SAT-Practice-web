@@ -19,7 +19,7 @@ Deno.serve(async (req) => {
     const progressRequested = seg.length === 3 && seg[2] === "progress";
     if (req.method === "POST" && progressRequested) {
       const parsed = classProgressAssignmentSchema.safeParse(await req.json());
-      if (!parsed.success) return error("Check the skill, question count, timer, and name.", 422);
+      if (!parsed.success) return error("Check the domain, skill, difficulty, question count, timer, and name.", 422);
       const body = parsed.data;
       const { data, error: assignmentError } = await svc.rpc("assign_class_progress_questions", {
         p_class_id: id,
