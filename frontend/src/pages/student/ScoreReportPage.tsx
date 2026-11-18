@@ -1,6 +1,6 @@
 import VisualCode from "../../components/VisualCode";
-import { useEffect, useMemo, useState, type CSSProperties } from "react";
-import { useNavigate, useParams } from "react-router-dom";
+import { useEffect, useMemo, useRef, useState, type CSSProperties } from "react";
+import { useLocation, useNavigate, useParams, useSearchParams } from "react-router-dom";
 import { fnJson, getToken } from "../../lib/supabase";
 import type { ReviewItem, ScoreDetail } from "../../lib/types";
 import { Button, EmptyState, Pill, Spinner, fmtDate } from "../../components/ui";
@@ -9,16 +9,27 @@ import PassageBlock from "../../components/PassageBlock";
 import StudentAnnotatedReviews from "../../components/StudentAnnotatedReviews";
 
 type Tab = "all" | "wrong" | "unanswered";
+const practiceTabs = [
+  { id: "review", label: "Answer Review" },
+  { id: "summary", label: "Score summary" },
+] as const;
 
 export default function ScoreReportPage() {
   const { attemptId } = useParams<{ attemptId: string }>();
   const navigate = useNavigate();
+  const { state } = useLocation();
+  const [params, setParams] = useSearchParams();
+  const practiceTab = params.get("tab") === "summary" ? "summary" : "review";
+  const backPath = state?.fromPractice === true ? "/student/practice" : "/student/results";
+  const backLabel = backPath === "/student/practice" ? "Practice" : "Results";
   const [data, setData] = useState<ScoreDetail | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [tab, setTab] = useState<Tab>("all");
   const [section, setSection] = useState("all");
   const [domain, setDomain] = useState("all");
   const [skill, setSkill] = useState("all");
+  const heading = useRef<HTMLHeadingElement>(null);
+  const isPractice = data?.attempt.test?.kind === "practice";
 
   useEffect(() => {
     if (!attemptId) return;
@@ -35,6 +46,10 @@ export default function ScoreReportPage() {
     })();
     return () => { active = false; };
   }, [attemptId]);
+
+  useEffect(() => {
+    if (attemptId === data?.attempt.id && isPractice) heading.current?.focus();
+  }, [attemptId, data?.attempt.id, isPractice]);
 
   const review = data?.review ?? [];
 
@@ -81,7 +96,7 @@ export default function ScoreReportPage() {
     return (
       <div className="center-fill">
         <p>{error}</p>
-        <Button variant="outline" onClick={() => navigate("/student/results")}>Back to results</Button>
+        <Button variant="outline" onClick={() => navigate(backPath)}>Back to {backLabel.toLowerCase()}</Button>
       </div>
     );
   }
@@ -93,101 +108,135 @@ export default function ScoreReportPage() {
   const unanswered = review.filter((r) => r.unanswered).length;
   const pct = totalQ > 0 ? Math.round((correct / totalQ) * 100) : 0;
 
+  function selectPracticeTab(id: typeof practiceTab) {
+    setParams(current => {
+      const next = new URLSearchParams(current);
+      if (id === "summary") next.set("tab", id);
+      else next.delete("tab");
+      return next;
+    }, { replace: true, state });
+  }
+
   return (
     <div className="score-report">
-      <div className="section-label">Score report</div>
+      {!isPractice && <div className="section-label">Score report</div>}
       <div className="page-head-row">
         <div>
-          <h1 className="page-title"><span className="hl-muted">Score</span> <span className="hl-bright">report</span></h1>
+          <h1 className="page-title" ref={heading} tabIndex={isPractice ? -1 : undefined}>{isPractice ? "Practice review" : <><span className="hl-muted">Score</span> <span className="hl-bright">report</span></>}</h1>
           <p className="page-sub">
             {data.attempt.test?.title ?? "Full-Length Test"} · Submitted {fmtDate(data.attempt.submitted_at)}
           </p>
         </div>
-        <Button variant="outline" onClick={() => navigate("/student/results")}>← Results</Button>
+        <Button variant="outline" onClick={() => navigate(backPath)}>← {backLabel}</Button>
       </div>
 
-      <div className="score-hero">
-        <div>
-          <div className="lbl">Correct answers</div>
-          <div className="big">
-            {correct} <span className="hero-soft" style={{ fontSize: 20, fontWeight: 600 }}>/ {totalQ}</span>
-          </div>
-          <div className="lbl" style={{ marginTop: 6 }}>
-            Accuracy {pct}%
-          </div>
-          <div style={{ display: "flex", gap: 8, marginTop: 8, flexWrap: "wrap" }}>
-            <Pill tone="green">{correct} correct</Pill>
-            <Pill tone="red">{wrong} wrong</Pill>
-            {unanswered > 0 && <Pill tone="amber">{unanswered} unanswered</Pill>}
-          </div>
+      {isPractice && (
+        <div className="score-tabs review-section-switch" role="tablist" aria-label="Practice report" onKeyDown={(event) => {
+          const other = practiceTab === "review" ? "summary" : "review";
+          const next = { ArrowLeft: other, ArrowRight: other, Home: "review", End: "summary" } as const;
+          if (!Object.hasOwn(next, event.key)) return;
+          const id = next[event.key as keyof typeof next];
+          event.preventDefault();
+          event.currentTarget.querySelector<HTMLButtonElement>(`#practice-tab-${id}`)?.focus();
+          selectPracticeTab(id);
+        }}>
+          {practiceTabs.map(({ id, label }) => (
+            <button key={id} type="button" id={`practice-tab-${id}`} className={`score-tab${practiceTab === id ? " active" : ""}`}
+              role="tab" aria-selected={practiceTab === id} aria-controls={`practice-panel-${id}`}
+              tabIndex={practiceTab === id ? 0 : -1} onClick={() => selectPracticeTab(id)}>{label}</button>
+          ))}
         </div>
-        <div className="score-orbit" style={{ "--score-pct": `${pct}%` } as CSSProperties} role="img" aria-label={`${pct}% accuracy`}><span>{pct}%</span></div>
-        <div style={{ textAlign: "right" }}>
-          <div className="lbl">Section accuracy</div>
-          <div style={{ fontSize: 16, fontWeight: 700, marginTop: 4 }}>
-            {[...bySection.entries()].map(([name, s]) => {
-              const spct = s.total > 0 ? Math.round((s.correct / s.total) * 100) : 0;
-              return (
-                <div key={name} style={{ marginTop: 8, textAlign: "right" }}>
-                  <div style={{ display: "flex", gap: 10, justifyContent: "flex-end", alignItems: "center" }}>
-                    <span className="hero-soft">{name === "reading_writing" ? "Reading & Writing" : "Math"}</span>
-                    <span>{s.correct}/{s.total}</span>
-                    <span className="hero-soft" style={{ fontSize: 12.5 }}>({spct}%)</span>
-                  </div>
-                  <div className="score-bar" style={{ width: 200, marginLeft: "auto" }}>
-                    <div style={{ width: `${spct}%`, background: spct >= 70 ? "var(--green)" : spct >= 40 ? "var(--amber)" : "var(--red)" }} />
-                  </div>
-                </div>
-              );
-            })}
-            {bySection.size === 0 && <span className="hero-soft">—</span>}
-          </div>
-        </div>
-      </div>
-
-      {byDomain.length > 0 && (
-        <section style={{ marginBottom: 30 }}>
-          <div className="section-label">Domains</div>
-          <div className="section-head">
-            <h2>Performance by Domain</h2>
-          </div>
-          <div className="card card-pad">
-            {byDomain.map((t) => {
-              const tpct = t.total > 0 ? Math.round((t.correct / t.total) * 100) : 0;
-              return (
-                <div key={t.domain} style={{ marginBottom: 14 }}>
-                  <div style={{ display: "flex", justifyContent: "space-between", fontSize: 13.5, fontWeight: 600 }}>
-                    <span>
-                      {t.domain}
-                      {t.skills.length === 1 ? ` · ${t.skills[0]}` : ""}
-                    </span>
-                    <span className="muted">
-                      {t.correct}/{t.total} ({tpct}%)
-                    </span>
-                  </div>
-                  <div className="score-bar">
-                    <div style={{ width: `${tpct}%`, background: tpct >= 70 ? "var(--green)" : tpct >= 40 ? "var(--amber)" : "var(--red)" }} />
-                  </div>
-                  {t.skills.length > 1 && (
-                    <div style={{ display: "flex", gap: 6, marginTop: 4, flexWrap: "wrap" }}>
-                      {t.skills.map((s) => (
-                        <span key={s} className="pill pill-blue">{s}</span>
-                      ))}
-                    </div>
-                  )}
-                </div>
-              );
-            })}
-          </div>
-        </section>
       )}
 
-      <section>
-        <div className="section-label">Review</div>
+      <section id="practice-panel-summary" role={isPractice ? "tabpanel" : undefined}
+        aria-labelledby={isPractice ? "practice-tab-summary" : undefined} tabIndex={isPractice ? 0 : undefined}
+        hidden={isPractice && practiceTab !== "summary"}>
+        <div className="score-hero">
+          <div>
+            <div className="lbl">Correct answers</div>
+            <div className="big">
+              {correct} <span className="hero-soft" style={{ fontSize: 20, fontWeight: 600 }}>/ {totalQ}</span>
+            </div>
+            <div className="lbl" style={{ marginTop: 6 }}>
+              Accuracy {pct}%
+            </div>
+            <div style={{ display: "flex", gap: 8, marginTop: 8, flexWrap: "wrap" }}>
+              <Pill tone="green">{correct} correct</Pill>
+              <Pill tone="red">{wrong} wrong</Pill>
+              {unanswered > 0 && <Pill tone="amber">{unanswered} unanswered</Pill>}
+            </div>
+          </div>
+          <div className="score-orbit" style={{ "--score-pct": `${pct}%` } as CSSProperties} role="img" aria-label={`${pct}% accuracy`}><span>{pct}%</span></div>
+          <div style={{ textAlign: "right" }}>
+            <div className="lbl">Section accuracy</div>
+            <div style={{ fontSize: 16, fontWeight: 700, marginTop: 4 }}>
+              {[...bySection.entries()].map(([name, s]) => {
+                const spct = s.total > 0 ? Math.round((s.correct / s.total) * 100) : 0;
+                return (
+                  <div key={name} style={{ marginTop: 8, textAlign: "right" }}>
+                    <div style={{ display: "flex", gap: 10, justifyContent: "flex-end", alignItems: "center" }}>
+                      <span className="hero-soft">{name === "reading_writing" ? "Reading & Writing" : "Math"}</span>
+                      <span>{s.correct}/{s.total}</span>
+                      <span className="hero-soft" style={{ fontSize: 12.5 }}>({spct}%)</span>
+                    </div>
+                    <div className="score-bar" style={{ width: 200, marginLeft: "auto" }}>
+                      <div style={{ width: `${spct}%`, background: spct >= 70 ? "var(--green)" : spct >= 40 ? "var(--amber)" : "var(--red)" }} />
+                    </div>
+                  </div>
+                );
+              })}
+              {bySection.size === 0 && <span className="hero-soft">—</span>}
+            </div>
+          </div>
+        </div>
+
+        {byDomain.length > 0 && (
+          <section style={{ marginBottom: 30 }}>
+            <div className="section-label">Domains</div>
+            <div className="section-head">
+              <h2>Performance by Domain</h2>
+            </div>
+            <div className="card card-pad">
+              {byDomain.map((t) => {
+                const tpct = t.total > 0 ? Math.round((t.correct / t.total) * 100) : 0;
+                return (
+                  <div key={t.domain} style={{ marginBottom: 14 }}>
+                    <div style={{ display: "flex", justifyContent: "space-between", fontSize: 13.5, fontWeight: 600 }}>
+                      <span>
+                        {t.domain}
+                        {t.skills.length === 1 ? ` · ${t.skills[0]}` : ""}
+                      </span>
+                      <span className="muted">
+                        {t.correct}/{t.total} ({tpct}%)
+                      </span>
+                    </div>
+                    <div className="score-bar">
+                      <div style={{ width: `${tpct}%`, background: tpct >= 70 ? "var(--green)" : tpct >= 40 ? "var(--amber)" : "var(--red)" }} />
+                    </div>
+                    {t.skills.length > 1 && (
+                      <div style={{ display: "flex", gap: 6, marginTop: 4, flexWrap: "wrap" }}>
+                        {t.skills.map((s) => (
+                          <span key={s} className="pill pill-blue">{s}</span>
+                        ))}
+                      </div>
+                    )}
+                  </div>
+                );
+              })}
+            </div>
+          </section>
+        )}
+      </section>
+
+      <section id="practice-panel-review" role={isPractice ? "tabpanel" : undefined}
+        aria-labelledby={isPractice ? "practice-tab-review" : undefined} tabIndex={isPractice ? 0 : undefined}
+        hidden={isPractice && practiceTab !== "review"}>
+        {!isPractice && <div className="section-label">Review</div>}
         <div className="section-head" style={{ flexWrap: "wrap" }}>
           <h2>Answer Review</h2>
-          <StudentAnnotatedReviews key={data.attempt.id} attemptId={data.attempt.id} questions={data.review} title={data.attempt.test?.title ?? "Score report"} />
         </div>
+        <StudentAnnotatedReviews key={data.attempt.id} attemptId={data.attempt.id} questions={data.review}
+          title={data.attempt.test?.title ?? "Score report"} showStatus={isPractice} enabled={!isPractice || practiceTab === "review"} />
 
         {data.explanations_released === false && (
           <div className="card card-pad" style={{ marginBottom: 16, fontSize: 13.5 }}>

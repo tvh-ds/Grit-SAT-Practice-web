@@ -164,7 +164,7 @@ export default function PracticePage() {
               <PracticeSetStats set={t} />
               <div className="practice-set-actions">
                 <Pill tone="green">Graded</Pill>
-                <Button variant="outline" onClick={() => navigate(`/student/scores/${t.attempt!.id}`)}>View Results</Button>
+                <Button variant="outline" onClick={() => navigate(`/student/scores/${t.attempt!.id}`, { state: { fromPractice: true } })}>Review practice</Button>
               </div>
             </div>
           ))}

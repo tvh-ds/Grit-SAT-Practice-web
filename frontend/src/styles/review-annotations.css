@@ -80,3 +80,7 @@
   @page { size: A4; margin: 10mm; }
 }
 .annotation-review-toolbar { display: flex; flex-wrap: wrap; align-items: center; gap: 12px; margin: 12px 0; font-size: 13px; }
+.student-annotated-reviews { padding: 16px; margin-bottom: 20px; border: 1px solid var(--border-subtle); border-radius: 8px; background: var(--bg-surface); }
+.student-annotated-reviews h3 { margin: 0 0 8px; font-size: 16px; }
+.student-annotated-reviews p { margin: 0; }
+.student-annotated-reviews .annotation-review-toolbar { margin: 0; }

@@ -2,7 +2,7 @@ import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { createPortal } from "react-dom";
 import { Button } from "./ui";
 import QuestionAnnotationBoard, { BoardSurface } from "./QuestionAnnotationBoard";
-import { loadAnnotations, saveAnnotation, setAnnotationShared } from "../lib/reviewAnnotationStorage";
+import { loadAnnotations, saveAnnotation } from "../lib/reviewAnnotationStorage";
 import { annotationFingerprint } from "../lib/reviewAnnotations";
 import type { AnnotationQuestion, ReviewAnnotation, ReviewAnnotationRow } from "../lib/reviewAnnotations";
 
@@ -14,12 +14,11 @@ export function useAssignmentAnnotations(scope: string, questions: AnnotationQue
   const [error, setError] = useState("");
   const [exporting, setExporting] = useState(false);
   const [reload, setReload] = useState(0);
-  const [sharing, setSharing] = useState<string | null>(null);
-  const [shareError, setShareError] = useState("");
   const questionKey = useMemo(() => JSON.stringify(questions), [questions]);
+  const assignmentWide = scope.startsWith("admin-practice-assignments/") && !scope.includes("/attempts/");
   useEffect(() => {
     let cancelled = false;
-    setLoading(true); setError(""); setShareError(""); setBoards({}); setActive(null);
+    setLoading(true); setError(""); setBoards({}); setActive(null);
     if (questionKey === "[]") { setLoading(false); return; }
     void (async () => {
       try {
@@ -33,49 +32,26 @@ export function useAssignmentAnnotations(scope: string, questions: AnnotationQue
         setHashes(h);
         setBoards(Object.fromEntries(rows.filter(row => {
           const hash = h.get(row.question_id);
-          return row.content_hash === hash?.current || row.content_hash === hash?.legacy;
+          return hash && (row.content_hash === hash.current ||
+            (row.legacy_content_unchanged && (assignmentWide || row.content_hash === hash.legacy)));
         }).map(row => [row.question_id, row])));
       } catch (e) { if (!cancelled) setError(e instanceof Error ? e.message : "Could not load annotations."); }
       finally { if (!cancelled) setLoading(false); }
     })();
     return () => { cancelled = true; };
-  }, [scope, questionKey, reload]);
+  }, [scope, questionKey, reload, assignmentWide]);
   const savedQuestions = questions.filter(q => boards[q.question_id]);
   const annotations = Object.fromEntries(Object.entries(boards).map(([id, row]) => [id, row.document]));
   const annotate = useCallback((q: AnnotationQuestion) => setActive(q), []);
   const audience = scope.includes("/attempts/") ? "this student" : "students in this assignment";
 
-  async function toggleShared(row: ReviewAnnotationRow) {
-    const hash = hashes.get(row.question_id);
-    if (!hash) return;
-    setShareError("");
-    setSharing(row.question_id);
-    try {
-      const updated = await setAnnotationShared(scope, row, hash.current, !row.shared_at);
-      setBoards(current => current[row.question_id] === row ? { ...current, [row.question_id]: updated } : current);
-    } catch (e) {
-      setShareError(e instanceof Error ? e.message : "Could not update sharing.");
-    } finally {
-      setSharing(null);
-    }
-  }
-
   return {
     annotate,
-    button: (q: AnnotationQuestion) => {
-      const row = boards[q.question_id];
-      return <>
-        <Button size="sm" variant="outline" disabled={loading || Boolean(error)} onClick={() => annotate(q)}>{row ? "Edit annotation" : "Annotate"}</Button>
-        {row && <Button size="sm" variant="outline" disabled={sharing !== null} aria-label={`${row.shared_at ? "Unshare" : "Share"} question ${q.question_number} ${row.shared_at ? "from" : "with"} ${audience}`} onClick={() => void toggleShared(row)}>
-          {sharing === q.question_id ? "Updating…" : row.shared_at ? "Unshare review" : "Share review"}
-        </Button>}
-      </>;
-    },
+    button: (q: AnnotationQuestion) => <Button size="sm" variant="outline" disabled={loading || Boolean(error)} onClick={() => annotate(q)}>{boards[q.question_id] ? "Edit annotation" : "Annotate"}</Button>,
     toolbar: <div className="annotation-review-toolbar">
       <Button variant="outline" disabled={loading || Boolean(error) || !savedQuestions.length} onClick={() => setExporting(true)}>Export reviews ({savedQuestions.length})</Button>
-      <span role="status" className="muted">{loading ? "Loading annotations…" : `Share saved reviews with ${audience}. Edits to shared reviews are visible to students.`}</span>
+      <span role="status" className="muted">{loading ? "Loading annotations…" : `Saving an annotation updates the review for ${audience}.`}</span>
       {error && <div role="alert">{error} <Button size="sm" variant="ghost" onClick={() => setReload(r => r + 1)}>Retry</Button></div>}
-      {shareError && <div role="alert">{shareError}</div>}
     </div>,
     overlay: <>
       {active && <QuestionAnnotationBoard key={`${scope}:${active.question_id}`} question={active} initial={annotations[active.question_id]} onClose={() => setActive(null)} onSave={async document => {

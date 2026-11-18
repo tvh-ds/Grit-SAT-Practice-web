@@ -168,7 +168,7 @@ function ResultsPanel({ history }: { history: ScoreEntry[] }) {
                 <strong>{score ? `${score.accuracy}%` : "—"}</strong>
                 <span>{score ? `${score.raw_score} / ${score.total_questions}` : "NO SCORE"}</span>
               </div>
-              <Link className="btn btn-secondary" to={`/student/scores/${attempt.id}`}>Open Report</Link>
+              <Link className="btn btn-secondary" to={`/student/scores/${attempt.id}`}>{attempt.test?.kind === "practice" ? "Review practice" : "Open Report"}</Link>
             </article>
           );
         })}

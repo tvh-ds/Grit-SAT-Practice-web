@@ -34,6 +34,9 @@ Deno.test("shared annotated reviews are limited to the attempt's scopes and ques
   const studentScope = `admin-students/${student}/attempts/${attemptId}`;
   const fullScope = `admin-tests/assignment-batches/full-a/attempts/${attemptId}`;
   const review = { question_id: "question-a", content_hash: "hash", document: { notes: "Feedback" } };
+  const savedAt = "2026-11-17T10:00:00Z";
+  const unchanged = { updated_at: "2026-11-16T10:00:00Z", passage: null, choices: [] };
+  const legacyReview = { ...review, updated_at: savedAt, shared_at: null, question: unchanged };
   const svc = fixture((table, search) => {
     switch (table) {
       case "attempts": return [attempt];
@@ -53,14 +56,20 @@ Deno.test("shared annotated reviews are limited to the attempt's scopes and ques
         return [{ question_id: "question-a" }];
       case "admin_review_annotations":
         assert.equal(search.get("question_id"), "in.(question-a)");
-        assert.equal(search.get("shared_at"), "not.is.null");
+        assert.equal(search.get("shared_at"), null, "Saved annotations are visible regardless of the old sharing flag");
+        assert.equal(search.get("order"), "updated_at.desc,owner_id.asc");
         assert.equal(search.get("scope"), `in.(${studentScope},${fullScope},${batchScope}/attempts/${attemptId},${batchScope})`);
-        return [{ scope: studentScope, ...review }, { scope: batchScope, ...review }];
+        return [
+          { ...legacyReview, scope: studentScope, shared_at: savedAt },
+          { ...legacyReview, scope: batchScope },
+          { ...legacyReview, scope: batchScope, question: { ...unchanged, choices: [{ updated_at: "2026-11-18T10:00:00Z" }] } },
+        ];
       default: throw new Error(`Unexpected query for ${table}`);
     }
   });
   assert.deepEqual(await loadSharedReviewAnnotations(svc, student, attemptId), [
-    { ...review, assignment_wide: false },
-    { ...review, assignment_wide: true },
+    { ...review, assignment_wide: false, legacy_content_unchanged: false },
+    { ...review, assignment_wide: true, legacy_content_unchanged: true },
+    { ...review, assignment_wide: true, legacy_content_unchanged: false },
   ]);
 });

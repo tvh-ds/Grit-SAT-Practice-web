@@ -1,6 +1,20 @@
 import type { SupabaseClient } from "npm:@supabase/supabase-js@2";
 import { HttpError } from "./auth.ts";
 
+type StoredAnnotation = {
+  scope: string;
+  question_id: string;
+  content_hash: string;
+  document: unknown;
+  shared_at: string | null;
+  updated_at: string;
+  question: {
+    updated_at: string;
+    passage: { updated_at: string } | null;
+    choices: { updated_at: string }[];
+  } | null;
+};
+
 export async function loadSharedReviewAnnotations(svc: SupabaseClient, studentId: string, attemptId: string) {
   if (!/^[0-9a-f]{8}(?:-[0-9a-f]{4}){3}-[0-9a-f]{12}$/i.test(attemptId)) {
     throw new HttpError(404, "Attempt not found");
@@ -41,9 +55,24 @@ export async function loadSharedReviewAnnotations(svc: SupabaseClient, studentId
   if (!questionIds.length) return [];
 
   const { data, error: boardError } = await svc.from("admin_review_annotations")
-    .select("scope,question_id,content_hash,document")
-    .in("scope", scopes).in("question_id", questionIds).not("shared_at", "is", null)
-    .order("shared_at", { ascending: false }).order("owner_id");
+    .select("scope,question_id,content_hash,document,shared_at,updated_at,question:questions(updated_at,passage:passages(updated_at),choices:question_choices(updated_at))")
+    .in("scope", scopes).in("question_id", questionIds)
+    .order("updated_at", { ascending: false }).order("owner_id");
   if (boardError) throw boardError;
-  return (data ?? []).map(({ scope, ...row }) => ({ ...row, assignment_wide: scope === batchScope }));
+  return ((data ?? []) as unknown as StoredAnnotation[]).map(row => {
+    const question = row.question;
+    const savedAt = Date.parse(row.updated_at);
+    // Old assignment fingerprints included changing answer counts. Keep them
+    // usable when the snapshot question and its displayed content are still current.
+    const legacyContentUnchanged = row.shared_at === null && question !== null &&
+      [question, ...question.choices, ...(question.passage ? [question.passage] : [])]
+        .every(content => Date.parse(content.updated_at) <= savedAt);
+    return {
+      question_id: row.question_id,
+      content_hash: row.content_hash,
+      document: row.document,
+      assignment_wide: row.scope === batchScope,
+      legacy_content_unchanged: legacyContentUnchanged,
+    };
+  });
 }

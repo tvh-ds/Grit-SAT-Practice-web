@@ -35,6 +35,7 @@ export type ReviewAnnotationRow = {
   document: ReviewAnnotation;
   content_hash: string;
   shared_at: string | null;
+  legacy_content_unchanged?: boolean;
 };
 
 export async function annotationFingerprint(question: AnnotationQuestion, legacy = false) {
